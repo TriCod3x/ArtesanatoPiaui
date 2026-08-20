@@ -37,7 +37,26 @@ export const productSchema = z.object({
   weight_grams: z.number().int().positive().optional().nullable(),
 });
 
+export const postSchema = z.object({
+  content: z
+    .string()
+    .trim()
+    .min(3, "Escreva pelo menos 3 caracteres")
+    .max(1000, "Máximo de 1000 caracteres"),
+  product_id: z.string().uuid("Produto inválido").optional().or(z.literal("")),
+});
+
+export const commentSchema = z.object({
+  content: z
+    .string()
+    .trim()
+    .min(1, "Escreva um comentário")
+    .max(500, "Máximo de 500 caracteres"),
+});
+
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type StoreInput = z.infer<typeof storeSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
+export type PostInput = z.infer<typeof postSchema>;
+export type CommentInput = z.infer<typeof commentSchema>;

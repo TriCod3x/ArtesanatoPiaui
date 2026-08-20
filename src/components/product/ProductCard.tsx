@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/hooks/useCart";
-import { toast } from "sonner";
+import { LikeButton } from "@/components/community/LikeButton";
 import type { ProductWithRelations } from "@/types";
 
 interface ProductCardProps {
@@ -40,15 +40,7 @@ export function ProductCard({ product }: ProductCardProps) {
             className="object-cover group-hover:scale-105 transition-transform duration-300"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
           />
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              toast.success("Produto favoritado!");
-            }}
-            className="absolute top-3 right-3 w-8 h-8 bg-white/90 dark:bg-[#2a1e0f]/90 rounded-full flex items-center justify-center hover:bg-white hover:text-terracota transition-all shadow-sm dark:text-[#f5edd6]"
-          >
-            <Heart size={14} />
-          </button>
+          <LikeButton targetId={product.id} target="product" variant="floating" />
           {categoryLabel && (
             <span
               className="absolute top-3 left-3 text-xs font-semibold px-2.5 py-1 rounded-full"

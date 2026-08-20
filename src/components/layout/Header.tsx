@@ -60,6 +60,19 @@ export function Header() {
           </span>
         </Link>
 
+        {/* Nav — desktop */}
+        <nav className="hidden lg:flex items-center gap-5 flex-shrink-0">
+          <Link href="/produtos" className="text-sm font-medium text-cream/90 hover:text-terracota transition-colors">
+            Produtos
+          </Link>
+          <Link href="/lojas" className="text-sm font-medium text-cream/90 hover:text-terracota transition-colors">
+            Lojas
+          </Link>
+          <Link href="/comunidade" className="text-sm font-medium text-cream/90 hover:text-terracota transition-colors">
+            Comunidade
+          </Link>
+        </nav>
+
         {/* Search — desktop */}
         <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-xl mx-auto relative">
           <Input
@@ -187,6 +200,7 @@ export function Header() {
         <nav className="md:hidden bg-dark dark:bg-[#110c05] border-t border-cream/10 px-4 py-4 flex flex-col gap-2 transition-colors duration-300">
           <Link href="/produtos" className="text-cream hover:text-terracota py-2" onClick={() => setMenuOpen(false)}>Produtos</Link>
           <Link href="/lojas" className="text-cream hover:text-terracota py-2" onClick={() => setMenuOpen(false)}>Lojas</Link>
+          <Link href="/comunidade" className="text-cream hover:text-terracota py-2" onClick={() => setMenuOpen(false)}>Comunidade</Link>
           {!user && (
             <>
               <Link href="/login" className="text-cream hover:text-terracota py-2" onClick={() => setMenuOpen(false)}>Entrar</Link>

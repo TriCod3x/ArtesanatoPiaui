@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { ShoppingCart, Heart, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { ShoppingCart, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
 
 const WhatsAppIcon = ({ size = 18 }: { size?: number }) => (
   <svg viewBox="0 0 24 24" fill="currentColor" width={size} height={size} aria-hidden="true">
@@ -19,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice, formatWhatsApp } from "@/lib/utils";
 import { useCart } from "@/hooks/useCart";
+import { LikeButton } from "@/components/community/LikeButton";
 import type { ProductWithRelations } from "@/types";
 
 export default function ProdutoPage() {
@@ -154,9 +155,13 @@ export default function ProdutoPage() {
                 <ShoppingCart size={18} />
                 {product.stock === 0 ? "Sem estoque" : "Adicionar ao carrinho"}
               </Button>
-              <button onClick={() => toast.success("Produto favoritado!")} className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-terracota transition-colors">
-                <Heart size={15} /> Adicionar aos favoritos
-              </button>
+              <LikeButton
+                targetId={product.id}
+                target="product"
+                variant="inline"
+                label="Adicionar aos favoritos"
+                className="justify-center"
+              />
             </div>
 
             {product.stock > 0 && product.stock <= 5 && (

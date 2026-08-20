@@ -37,11 +37,32 @@ export interface CartItem {
   quantity: number
 }
 
-export interface CommunityPost {
+export type CommunityPost = Tables<"community_posts">
+export type PostComment = Tables<"post_comments">
+export type PostLike = Tables<"post_likes">
+
+export interface PostAuthor {
   id: string
-  store_id: string
-  content: string
-  image_url: string | null
-  created_at: string
-  store?: { name: string; slug: string; logo_url: string | null }
+  full_name: string
+  avatar_url: string | null
+}
+
+export interface PostProductRef {
+  id: string
+  name: string
+  slug: string
+  price: number
+  images?: { url: string; is_cover?: boolean; position?: number }[]
+}
+
+export interface PostWithRelations extends CommunityPost {
+  author?: PostAuthor | null
+  product?: PostProductRef | null
+  likes_count: number
+  comments_count: number
+  liked_by_me: boolean
+}
+
+export interface CommentWithAuthor extends PostComment {
+  author?: PostAuthor | null
 }

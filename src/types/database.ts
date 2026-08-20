@@ -78,6 +78,36 @@ export type Database = {
           { foreignKeyName: "commissions_store_id_fkey"; columns: ["store_id"]; referencedRelation: "stores"; referencedColumns: ["id"] }
         ]
       }
+      community_posts: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          id: string
+          image_url: string | null
+          product_id: string | null
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          product_id?: string | null
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          product_id?: string | null
+        }
+        Relationships: [
+          { foreignKeyName: "community_posts_author_id_fkey"; columns: ["author_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "community_posts_product_id_fkey"; columns: ["product_id"]; referencedRelation: "products"; referencedColumns: ["id"] }
+        ]
+      }
       favorites: {
         Row: {
           created_at: string
@@ -176,6 +206,57 @@ export type Database = {
         }
         Relationships: [
           { foreignKeyName: "orders_buyer_id_fkey"; columns: ["buyer_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] }
+        ]
+      }
+      post_comments: {
+        Row: {
+          author_id: string
+          content: string
+          created_at: string
+          id: string
+          post_id: string
+        }
+        Insert: {
+          author_id: string
+          content: string
+          created_at?: string
+          id?: string
+          post_id: string
+        }
+        Update: {
+          author_id?: string
+          content?: string
+          created_at?: string
+          id?: string
+          post_id?: string
+        }
+        Relationships: [
+          { foreignKeyName: "post_comments_author_id_fkey"; columns: ["author_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] },
+          { foreignKeyName: "post_comments_post_id_fkey"; columns: ["post_id"]; referencedRelation: "community_posts"; referencedColumns: ["id"] }
+        ]
+      }
+      post_likes: {
+        Row: {
+          created_at: string
+          id: string
+          post_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          post_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          post_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          { foreignKeyName: "post_likes_post_id_fkey"; columns: ["post_id"]; referencedRelation: "community_posts"; referencedColumns: ["id"] },
+          { foreignKeyName: "post_likes_user_id_fkey"; columns: ["user_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] }
         ]
       }
       product_images: {

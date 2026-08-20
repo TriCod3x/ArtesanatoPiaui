@@ -1,18 +1,10 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { CommunityPost } from "@/types";
-
-function timeAgo(date: string): string {
-  const diff = Date.now() - new Date(date).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 60) return `${mins}m atrás`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h atrás`;
-  return `${Math.floor(hours / 24)}d atrás`;
-}
+import { timeAgo } from "@/lib/utils";
+import type { PostWithRelations } from "@/types";
 
 interface CommunityFeedProps {
-  posts: CommunityPost[];
+  posts: PostWithRelations[];
 }
 
 export function CommunityFeed({ posts }: CommunityFeedProps) {
@@ -20,16 +12,27 @@ export function CommunityFeed({ posts }: CommunityFeedProps) {
 
   return (
     <section className="py-14 max-w-7xl mx-auto px-4">
-      <div className="mb-8">
-        <h2 className="font-display text-3xl font-bold text-dark dark:text-[#f5edd6]">Comunidade de artesãos</h2>
-        <p className="text-muted-foreground mt-1 text-sm">Novidades direto das lojas do Piauí</p>
+      <div className="mb-8 flex items-end justify-between gap-4">
+        <div>
+          <h2 className="font-display text-3xl font-bold text-dark dark:text-[#f5edd6]">
+            Comunidade de artesãos
+          </h2>
+          <p className="text-muted-foreground mt-1 text-sm">Novidades direto das lojas do Piauí</p>
+        </div>
+        <Link
+          href="/comunidade"
+          className="text-sm font-semibold text-terracota hover:underline whitespace-nowrap"
+        >
+          Ver tudo
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {posts.map((post) => (
-          <article
+          <Link
             key={post.id}
-            className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] rounded-2xl overflow-hidden hover:shadow-md hover:border-terracota/30 transition-all"
+            href={`/comunidade#post-${post.id}`}
+            className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] rounded-2xl overflow-hidden hover:shadow-md hover:border-terracota/30 transition-all block"
           >
             {post.image_url && (
               <div className="relative w-full" style={{ height: "200px" }}>
@@ -44,34 +47,33 @@ export function CommunityFeed({ posts }: CommunityFeedProps) {
             )}
             <div className="p-4">
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 rounded-full bg-cream dark:bg-[#3d2c1a] flex items-center justify-center overflow-hidden flex-shrink-0">
-                  {post.store?.logo_url ? (
+                <div className="w-8 h-8 rounded-full bg-cream dark:bg-[#3d2c1a] flex items-center justify-center overflow-hidden flex-shrink-0 relative">
+                  {post.author?.avatar_url ? (
                     <Image
-                      src={post.store.logo_url}
-                      alt={post.store.name ?? ""}
-                      width={32}
-                      height={32}
-                      className="object-cover w-full h-full"
+                      src={post.author.avatar_url}
+                      alt={post.author.full_name ?? ""}
+                      fill
+                      className="object-cover"
+                      sizes="32px"
                     />
                   ) : (
                     <span className="text-xs font-bold text-terracota">
-                      {post.store?.name?.[0]?.toUpperCase() ?? "A"}
+                      {post.author?.full_name?.[0]?.toUpperCase() ?? "A"}
                     </span>
                   )}
                 </div>
                 <div className="min-w-0">
-                  <Link
-                    href={`/lojas/${post.store?.slug ?? ""}`}
-                    className="text-sm font-semibold text-dark dark:text-[#f5edd6] hover:text-terracota transition-colors truncate block"
-                  >
-                    {post.store?.name ?? "Artesão"}
-                  </Link>
+                  <span className="text-sm font-semibold text-dark dark:text-[#f5edd6] truncate block">
+                    {post.author?.full_name ?? "Artesão"}
+                  </span>
                   <span className="text-xs text-muted-foreground">{timeAgo(post.created_at)}</span>
                 </div>
               </div>
-              <p className="text-sm text-dark dark:text-[#c4a882] leading-relaxed line-clamp-3">{post.content}</p>
+              <p className="text-sm text-dark dark:text-[#c4a882] leading-relaxed line-clamp-3">
+                {post.content}
+              </p>
             </div>
-          </article>
+          </Link>
         ))}
       </div>
     </section>

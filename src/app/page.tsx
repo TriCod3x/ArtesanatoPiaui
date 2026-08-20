@@ -6,7 +6,7 @@ import { CategoriesGrid } from "@/components/home/CategoriesGrid";
 import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { FeaturedStores } from "@/components/home/FeaturedStores";
 import { CommunityFeed } from "@/components/home/CommunityFeed";
-import type { ProductWithRelations, StoreWithContacts, CommunityPost } from "@/types";
+import type { ProductWithRelations, StoreWithContacts, PostWithRelations } from "@/types";
 
 export default async function HomePage() {
   const supabase = await createClient();
@@ -34,15 +34,15 @@ export default async function HomePage() {
       .limit(6)
       .order("total_sales", { ascending: false }),
     supabase
-      .from("posts")
-      .select(`*, store:stores(name, slug, logo_url)`)
+      .from("community_posts")
+      .select(`*, author:profiles(id, full_name, avatar_url)`)
       .order("created_at", { ascending: false })
       .limit(6),
   ]);
 
   const products = (productsRes.data ?? []) as unknown as ProductWithRelations[];
   const stores = (storesRes.data ?? []) as unknown as StoreWithContacts[];
-  const posts = (postsRes.data ?? []) as unknown as CommunityPost[];
+  const posts = (postsRes.data ?? []) as unknown as PostWithRelations[];
 
   return (
     <>

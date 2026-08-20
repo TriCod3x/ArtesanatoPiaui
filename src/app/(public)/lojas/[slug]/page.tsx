@@ -6,6 +6,7 @@ import { Footer } from "@/components/layout/Footer";
 import { ProductCard } from "@/components/product/ProductCard";
 import { formatWhatsApp } from "@/lib/utils";
 import { MapPin, Star } from "lucide-react";
+import { LikeButton } from "@/components/community/LikeButton";
 import type { StoreWithContacts, ProductWithRelations } from "@/types";
 
 const WhatsAppIcon = () => (
@@ -96,7 +97,8 @@ export default async function LojaPage({
                 <span>{store.total_sales} vendas</span>
               </div>
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-2 flex-wrap items-center">
+              <LikeButton targetId={store.id} target="store" variant="pill" label="Favoritar" />
               {whatsapp && (
                 <a href={formatWhatsApp(whatsapp)} target="_blank" rel="noopener noreferrer">
                   <button
