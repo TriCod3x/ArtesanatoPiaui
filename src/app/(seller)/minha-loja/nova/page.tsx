@@ -80,7 +80,7 @@ export default function NovaLojaPage() {
             <select
               id="city"
               {...register("city")}
-              className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white text-dark focus:outline-none focus:ring-2 focus:ring-terracota"
+              className="w-full border border-border dark:border-[#3d2c1a] rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#2a1e0f] text-dark dark:text-[#f5edd6] focus:outline-none focus:ring-2 focus:ring-terracota"
             >
               <option value="">Selecione</option>
               {CITIES_PI.map((c) => <option key={c} value={c}>{c}</option>)}

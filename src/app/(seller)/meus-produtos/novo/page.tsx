@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
 import { createProduct } from "@/actions/products";
 import { productSchema, type ProductInput } from "@/lib/validations";
 import { generateSlug } from "@/lib/utils";
@@ -13,11 +14,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ImageUpload, type ImageUploadHandle } from "@/components/shared/ImageUpload";
 import type { Category } from "@/types";
+
+const selectClass =
+  "w-full border border-border dark:border-[#3d2c1a] rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#2a1e0f] text-dark dark:text-[#f5edd6] focus:outline-none focus:ring-2 focus:ring-terracota";
 
 export default function NovoProdutoPage() {
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [storeId, setStoreId] = useState<string | null>(null);
+  const uploadRef = useRef<ImageUploadHandle>(null);
   const router = useRouter();
 
   const { register, handleSubmit, setValue, formState: { errors } } = useForm<ProductInput>({
@@ -26,21 +33,40 @@ export default function NovoProdutoPage() {
   });
 
   useEffect(() => {
-    createClient().from("categories").select("*").order("name").then(({ data }) => {
+    const supabase = createClient();
+    supabase.from("categories").select("*").order("name").then(({ data }) => {
       if (data) setCategories(data as Category[]);
+    });
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("stores")
+        .select("id")
+        .eq("owner_id", user.id)
+        .maybeSingle()
+        .then(({ data }) => setStoreId(data?.id ?? null));
     });
   }, []);
 
   const onSubmit = async (data: ProductInput) => {
     setLoading(true);
     const result = await createProduct(data);
-    if (result?.error) {
-      toast.error(result.error);
+    if (!("productId" in result) || !result.productId) {
+      toast.error(("error" in result && result.error) || "Erro ao criar produto.");
       setLoading(false);
-    } else {
-      toast.success("Produto criado com sucesso!");
-      router.push("/meus-produtos");
+      return;
     }
+    const productId = result.productId;
+
+    if ((uploadRef.current?.pendingCount ?? 0) > 0) {
+      const ok = await uploadRef.current!.flush(productId);
+      if (!ok) {
+        toast.warning("Produto criado, mas houve falha ao enviar alguma imagem. Edite o produto para tentar de novo.");
+      }
+    }
+
+    toast.success("Produto criado com sucesso!");
+    router.push("/meus-produtos");
   };
 
   return (
@@ -48,9 +74,11 @@ export default function NovoProdutoPage() {
       <h1 className="font-display text-3xl font-bold text-dark dark:text-[#f5edd6] mb-2">Novo produto</h1>
       <p className="text-muted-foreground mb-8">Cadastre um novo produto na sua loja.</p>
 
+      {/* onSubmit lê uploadRef só dentro do handler assíncrono (fora do render). */}
+      {/* eslint-disable-next-line react-hooks/refs */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 bg-white dark:bg-[#2a1e0f] rounded-2xl border border-border dark:border-[#3d2c1a] p-8">
         <div className="space-y-2">
-          <Label htmlFor="name" className="dark:text-terracota">Nome do produto</Label>
+          <Label htmlFor="name" className="dark:text-[#c4622d]">Nome do produto</Label>
           <Input
             id="name"
             placeholder="Ex: Vaso de Cerâmica Sertaneja"
@@ -62,25 +90,21 @@ export default function NovoProdutoPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="slug" className="dark:text-terracota">Slug (URL)</Label>
+          <Label htmlFor="slug" className="dark:text-[#c4622d]">Slug (URL)</Label>
           <Input id="slug" {...register("slug")} className={errors.slug ? "border-destructive" : ""} />
           {errors.slug && <p className="text-sm text-destructive">{errors.slug.message}</p>}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="category_id" className="dark:text-terracota">Categoria</Label>
-          <select
-            id="category_id"
-            {...register("category_id")}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white text-dark focus:outline-none focus:ring-2 focus:ring-terracota"
-          >
+          <Label htmlFor="category_id" className="dark:text-[#c4622d]">Categoria</Label>
+          <select id="category_id" {...register("category_id")} className={selectClass}>
             <option value="">Sem categoria</option>
             {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="description" className="dark:text-terracota">Descrição</Label>
+          <Label htmlFor="description" className="dark:text-[#c4622d]">Descrição</Label>
           <Textarea
             id="description"
             rows={5}
@@ -93,7 +117,7 @@ export default function NovoProdutoPage() {
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="price" className="dark:text-terracota">Preço (R$)</Label>
+            <Label htmlFor="price" className="dark:text-[#c4622d]">Preço (R$)</Label>
             <Input
               id="price"
               type="number"
@@ -106,7 +130,7 @@ export default function NovoProdutoPage() {
             {errors.price && <p className="text-sm text-destructive">{errors.price.message}</p>}
           </div>
           <div className="space-y-2">
-            <Label htmlFor="stock" className="dark:text-terracota">Estoque</Label>
+            <Label htmlFor="stock" className="dark:text-[#c4622d]">Estoque</Label>
             <Input
               id="stock"
               type="number"
@@ -120,23 +144,32 @@ export default function NovoProdutoPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="status" className="dark:text-terracota">Status</Label>
-          <select
-            id="status"
-            {...register("status")}
-            className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-white text-dark focus:outline-none focus:ring-2 focus:ring-terracota"
-          >
+          <Label htmlFor="status" className="dark:text-[#c4622d]">Status</Label>
+          <select id="status" {...register("status")} className={selectClass}>
             <option value="active">Ativo (visível na loja)</option>
             <option value="inactive">Inativo (oculto)</option>
             <option value="out_of_stock">Sem estoque</option>
           </select>
         </div>
 
+        <div className="space-y-2">
+          <Label className="dark:text-[#c4622d]">Fotos do produto</Label>
+          <p className="text-xs text-muted-foreground dark:text-[#8a6a4a]">
+            Até 5 fotos. A primeira será a capa exibida na vitrine.
+          </p>
+          {storeId ? (
+            <ImageUpload ref={uploadRef} storeId={storeId} />
+          ) : (
+            <p className="text-sm text-muted-foreground">Carregando…</p>
+          )}
+        </div>
+
         <div className="flex gap-3 pt-2">
           <Button type="button" variant="outline" className="flex-1 dark:border-[#3d2c1a] dark:text-[#f5edd6]" onClick={() => router.back()}>
             Cancelar
           </Button>
-          <Button type="submit" className="flex-1 bg-terracota hover:bg-terracota/90 text-white font-semibold" disabled={loading}>
+          <Button type="submit" className="flex-1 bg-terracota hover:bg-terracota/90 text-white font-semibold gap-2" disabled={loading}>
+            {loading && <Loader2 size={16} className="animate-spin" />}
             {loading ? "Salvando..." : "Criar produto"}
           </Button>
         </div>

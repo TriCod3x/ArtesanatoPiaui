@@ -15,7 +15,10 @@ interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const { add, openCart } = useCart();
   const categoryLabel = product.category?.name ?? null;
-  const imageUrl = product.images?.[0]?.url ?? "/images/placeholder-product.png";
+  const images = [...(product.images ?? [])].sort(
+    (a, b) => Number(b.is_cover) - Number(a.is_cover) || a.position - b.position,
+  );
+  const imageUrl = images[0]?.url ?? "/images/placeholder-product.png";
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();

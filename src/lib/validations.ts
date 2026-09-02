@@ -32,7 +32,13 @@ export const productSchema = z.object({
   description: z.string().min(20, "Descrição deve ter no mínimo 20 caracteres"),
   price: z.number().positive("Preço deve ser maior que zero"),
   stock: z.number().int().min(0, "Estoque não pode ser negativo"),
-  category_id: z.string().uuid("Categoria inválida").optional().nullable(),
+  // <select> vazio manda "" — aceitamos e tratamos como "sem categoria" na action.
+  category_id: z
+    .string()
+    .uuid("Categoria inválida")
+    .nullable()
+    .optional()
+    .or(z.literal("")),
   tags: z.array(z.string()).optional(),
   status: z.enum(["active", "inactive", "out_of_stock"]),
   weight_grams: z.number().int().positive().optional().nullable(),
