@@ -20,6 +20,26 @@ export type StoreContact = Tables<"store_contacts">
 export type ProductImage = Tables<"product_images">
 export type Category = Tables<"categories">
 export type Commission = Tables<"commissions">
+export type Payment = Tables<"payments">
+
+export type PaymentMethod = "pix" | "credit_card"
+export type PaymentStatus =
+  | "pending"
+  | "paid"
+  | "failed"
+  | "refunded"
+  | "cancelled"
+
+export interface OrderWithRelations extends Order {
+  items?: (OrderItem & {
+    product?: Pick<Product, "id" | "name" | "slug"> & {
+      images?: Pick<ProductImage, "url" | "is_cover" | "position">[]
+    }
+    store?: Pick<Store, "id" | "name" | "slug">
+  })[]
+  payment?: Payment | null
+  buyer?: Pick<Profile, "id" | "full_name"> | null
+}
 
 // Joined/extended types for UI use
 export interface ProductWithRelations extends Product {

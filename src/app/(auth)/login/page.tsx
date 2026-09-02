@@ -24,7 +24,11 @@ export default function LoginPage() {
 
   const onSubmit = async (data: SignInInput) => {
     setLoading(true);
-    const result = await signIn(data);
+    const redirectTo =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("redirect") ?? undefined
+        : undefined;
+    const result = await signIn(data, redirectTo);
     if (result?.error) {
       toast.error(result.error);
       setLoading(false);

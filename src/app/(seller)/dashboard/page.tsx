@@ -189,11 +189,12 @@ export default async function DashboardPage() {
       )}
 
       {/* Quick links */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { href: "/meus-produtos", label: "Gerenciar produtos", icon: Package },
           { href: "/minha-loja", label: "Editar loja", icon: ShoppingBag },
-          { href: "/pedidos", label: "Ver pedidos", icon: DollarSign },
+          { href: "/seller/pedidos", label: "Ver pedidos", icon: DollarSign },
+          { href: "/minha-loja/pagamentos", label: "Recebimento", icon: DollarSign },
         ].map((item) => (
           <Link
             key={item.href}

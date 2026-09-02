@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import type { SignInInput, SignUpInput } from "@/lib/validations";
 
-export async function signIn(data: SignInInput) {
+export async function signIn(data: SignInInput, redirectTo?: string) {
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signInWithPassword({
@@ -16,7 +16,11 @@ export async function signIn(data: SignInInput) {
     return { error: "Email ou senha incorretos." };
   }
 
-  redirect("/");
+  const target =
+    redirectTo && redirectTo.startsWith("/") && !redirectTo.startsWith("//")
+      ? redirectTo
+      : "/";
+  redirect(target);
 }
 
 export async function signUp(

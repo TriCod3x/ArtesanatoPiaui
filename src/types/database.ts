@@ -279,6 +279,62 @@ export type Database = {
           },
         ]
       }
+      payments: {
+        Row: {
+          amount: number
+          created_at: string
+          external_id: string | null
+          id: string
+          method: string | null
+          order_id: string
+          pix_expires_at: string | null
+          pix_qr_code: string | null
+          pix_qr_code_url: string | null
+          provider: string
+          raw_payload: Json | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          method?: string | null
+          order_id: string
+          pix_expires_at?: string | null
+          pix_qr_code?: string | null
+          pix_qr_code_url?: string | null
+          provider?: string
+          raw_payload?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          external_id?: string | null
+          id?: string
+          method?: string | null
+          order_id?: string
+          pix_expires_at?: string | null
+          pix_qr_code?: string | null
+          pix_qr_code_url?: string | null
+          provider?: string
+          raw_payload?: Json | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_comments: {
         Row: {
           author_id: string
@@ -495,49 +551,34 @@ export type Database = {
         Row: {
           avatar_url: string | null
           city: string | null
-          cnpj: string | null
-          cpf: string | null
           created_at: string
-          document_status: string
           full_name: string
           id: string
-          id_document_url: string | null
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
           state: string | null
-          terms_accepted_at: string | null
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
           city?: string | null
-          cnpj?: string | null
-          cpf?: string | null
           created_at?: string
-          document_status?: string
           full_name: string
           id: string
-          id_document_url?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           state?: string | null
-          terms_accepted_at?: string | null
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
           city?: string | null
-          cnpj?: string | null
-          cpf?: string | null
           created_at?: string
-          document_status?: string
           full_name?: string
           id?: string
-          id_document_url?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           state?: string | null
-          terms_accepted_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -612,12 +653,18 @@ export type Database = {
           address_number: string
           address_state: string
           address_street: string
+          bank_account: string | null
+          bank_account_digit: string | null
+          bank_account_type: string | null
+          bank_agency: string | null
+          bank_code: string | null
           cep: string
           cnpj: string | null
           cpf: string
           created_at: string
           document_status: string
           id_document_path: string | null
+          pagarme_recipient_id: string | null
           rejection_reason: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -633,12 +680,18 @@ export type Database = {
           address_number: string
           address_state: string
           address_street: string
+          bank_account?: string | null
+          bank_account_digit?: string | null
+          bank_account_type?: string | null
+          bank_agency?: string | null
+          bank_code?: string | null
           cep: string
           cnpj?: string | null
           cpf: string
           created_at?: string
           document_status?: string
           id_document_path?: string | null
+          pagarme_recipient_id?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -654,12 +707,18 @@ export type Database = {
           address_number?: string
           address_state?: string
           address_street?: string
+          bank_account?: string | null
+          bank_account_digit?: string | null
+          bank_account_type?: string | null
+          bank_agency?: string | null
+          bank_code?: string | null
           cep?: string
           cnpj?: string | null
           cpf?: string
           created_at?: string
           document_status?: string
           id_document_path?: string | null
+          pagarme_recipient_id?: string | null
           rejection_reason?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -773,6 +832,7 @@ export type Database = {
           logo_url: string | null
           name: string
           owner_id: string
+          pagarme_recipient_id: string | null
           rating: number | null
           rating_count: number
           slug: string
@@ -797,6 +857,7 @@ export type Database = {
           logo_url?: string | null
           name: string
           owner_id: string
+          pagarme_recipient_id?: string | null
           rating?: number | null
           rating_count?: number
           slug: string
@@ -821,6 +882,7 @@ export type Database = {
           logo_url?: string | null
           name?: string
           owner_id?: string
+          pagarme_recipient_id?: string | null
           rating?: number | null
           rating_count?: number
           slug?: string

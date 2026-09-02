@@ -123,6 +123,38 @@ export type SubmitSellerRequirementsInput = z.infer<
   typeof submitSellerRequirementsSchema
 >;
 
+// ── Dados bancários do vendedor (Pagar.me recipient) ────────────────────────
+
+export const bankDetailsSchema = z.object({
+  bank_code: z
+    .string()
+    .trim()
+    .refine((v) => /^\d{3}$/.test(v), "Selecione um banco"),
+  bank_agency: z
+    .string()
+    .trim()
+    .min(1, "Informe a agência")
+    .refine((v) => /^\d{1,6}$/.test(onlyDigits(v)), "Agência inválida")
+    .transform((v) => onlyDigits(v)),
+  bank_account: z
+    .string()
+    .trim()
+    .min(1, "Informe o número da conta")
+    .refine((v) => /^\d{1,13}$/.test(onlyDigits(v)), "Conta inválida")
+    .transform((v) => onlyDigits(v)),
+  bank_account_digit: z
+    .string()
+    .trim()
+    .min(1, "Informe o dígito")
+    .max(2, "Dígito inválido")
+    .transform((v) => v.replace(/[^0-9xX]/g, "").toLowerCase()),
+  bank_account_type: z.enum(["checking", "savings"], {
+    error: "Selecione o tipo de conta",
+  }),
+});
+
+export type BankDetailsInput = z.infer<typeof bankDetailsSchema>;
+
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type StoreInput = z.infer<typeof storeSchema>;
