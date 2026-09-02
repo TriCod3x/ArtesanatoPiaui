@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Package, ShoppingBag, DollarSign, Star, AlertCircle, Plus, ExternalLink } from "lucide-react";
+import { Package, ShoppingBag, DollarSign, Star, AlertCircle, Plus, ExternalLink, Clock, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/utils";
+import type { DocumentStatus } from "@/types";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -26,6 +27,14 @@ export default async function DashboardPage() {
     .single();
 
   if (!store) redirect("/minha-loja/nova");
+
+  const { data: verification } = await supabase
+    .from("seller_verifications")
+    .select("document_status, rejection_reason")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const docStatus = verification?.document_status as DocumentStatus | undefined;
 
   const isPending = store.status === "pending";
 
@@ -58,6 +67,51 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Document / KYC status */}
+      {!verification && (
+        <div className="bg-amber/10 border border-amber/30 rounded-xl p-4 flex items-start gap-3 mb-6">
+          <AlertCircle className="text-amber shrink-0 mt-0.5" size={20} />
+          <div className="flex-1">
+            <p className="font-semibold text-dark dark:text-[#f5edd6]">Complete seu cadastro de vendedor</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Envie seus dados e documento de identidade para que sua loja possa ser aprovada.
+            </p>
+            <Link href="/vender/cadastro" className="inline-block mt-3">
+              <Button size="sm" className="bg-terracota hover:bg-terracota/90 text-white">Completar cadastro</Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {docStatus === "pending" && (
+        <div className="bg-amber/10 border border-amber/30 rounded-xl p-4 flex items-start gap-3 mb-6">
+          <Clock className="text-amber shrink-0 mt-0.5" size={20} />
+          <div>
+            <p className="font-semibold text-dark dark:text-[#f5edd6]">Seus documentos estão em análise</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Assim que a verificação for concluída, você será avisado. Você já pode cadastrar produtos enquanto aguarda.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {docStatus === "rejected" && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 flex items-start gap-3 mb-6">
+          <XCircle className="text-destructive shrink-0 mt-0.5" size={20} />
+          <div className="flex-1">
+            <p className="font-semibold text-dark dark:text-[#f5edd6]">Seus documentos foram rejeitados</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {verification?.rejection_reason
+                ? `Motivo: ${verification.rejection_reason}`
+                : "Revise seus dados e o documento enviado e tente novamente."}
+            </p>
+            <Link href="/vender/cadastro" className="inline-block mt-3">
+              <Button size="sm" className="bg-terracota hover:bg-terracota/90 text-white">Reenviar documentos</Button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Pending store alert */}
       {isPending && (

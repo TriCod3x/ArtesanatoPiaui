@@ -36,6 +36,78 @@ export function stripPhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
+/** Remove tudo que não for dígito. */
+export function onlyDigits(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+/**
+ * Valida um CPF pelo algoritmo dos dígitos verificadores (não só o formato).
+ */
+export function isValidCPF(value: string): boolean {
+  const cpf = onlyDigits(value);
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cpf)) return false; // rejeita 000..., 111..., etc.
+
+  const digit = (sliceLength: number): number => {
+    let sum = 0;
+    for (let i = 0; i < sliceLength; i++) {
+      sum += Number(cpf[i]) * (sliceLength + 1 - i);
+    }
+    const rest = (sum * 10) % 11;
+    return rest === 10 ? 0 : rest;
+  };
+
+  return digit(9) === Number(cpf[9]) && digit(10) === Number(cpf[10]);
+}
+
+/**
+ * Valida um CNPJ pelo algoritmo dos dígitos verificadores.
+ */
+export function isValidCNPJ(value: string): boolean {
+  const cnpj = onlyDigits(value);
+  if (cnpj.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(cnpj)) return false;
+
+  const digit = (sliceLength: number): number => {
+    const weights =
+      sliceLength === 12
+        ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    let sum = 0;
+    for (let i = 0; i < sliceLength; i++) {
+      sum += Number(cnpj[i]) * weights[i];
+    }
+    const rest = sum % 11;
+    return rest < 2 ? 0 : 11 - rest;
+  };
+
+  return digit(12) === Number(cnpj[12]) && digit(13) === Number(cnpj[13]);
+}
+
+export function formatCPF(value: string): string {
+  return onlyDigits(value)
+    .slice(0, 11)
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+}
+
+export function formatCNPJ(value: string): string {
+  return onlyDigits(value)
+    .slice(0, 14)
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+}
+
+export function formatCEP(value: string): string {
+  return onlyDigits(value)
+    .slice(0, 8)
+    .replace(/(\d{5})(\d)/, "$1-$2");
+}
+
 export function timeAgo(date: string | Date): string {
   const then = new Date(date).getTime();
   const seconds = Math.max(0, Math.floor((Date.now() - then) / 1000));

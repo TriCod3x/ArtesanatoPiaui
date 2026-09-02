@@ -27,6 +27,14 @@ export const CITIES_PI = [
 ];
 
 export const MAX_PRODUCT_IMAGES = 5;
+
+export const IDENTITY_DOCUMENTS_BUCKET = "identity-documents";
+
+export const DOCUMENT_STATUS = {
+  PENDING: "pending",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+} as const;
 export const STORE_STATUS = {
   PENDING: "pending",
   ACTIVE: "active",

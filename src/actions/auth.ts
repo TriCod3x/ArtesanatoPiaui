@@ -19,7 +19,11 @@ export async function signIn(data: SignInInput) {
   redirect("/");
 }
 
-export async function signUp(data: SignUpInput) {
+export async function signUp(
+  data: SignUpInput,
+  options?: { redirect?: boolean },
+) {
+  const shouldRedirect = options?.redirect ?? true;
   const supabase = await createClient();
 
   const { data: authData, error } = await supabase.auth.signUp({
@@ -48,6 +52,10 @@ export async function signUp(data: SignUpInput) {
       role: data.role,
       phone: data.phone ?? null,
     });
+  }
+
+  if (!shouldRedirect) {
+    return { success: true };
   }
 
   if (data.role === "seller") {

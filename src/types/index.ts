@@ -9,6 +9,8 @@ export type ContactType = Enums<"contact_type">
 
 export type Profile = Tables<"profiles">
 export type Store = Tables<"stores">
+export type SellerVerification = Tables<"seller_verifications">
+export type DocumentStatus = "pending" | "approved" | "rejected"
 export type Product = Tables<"products">
 export type Order = Tables<"orders">
 export type OrderItem = Tables<"order_items">

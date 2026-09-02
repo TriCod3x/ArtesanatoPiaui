@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   public: {
     Tables: {
       categories: {
@@ -74,8 +79,20 @@ export type Database = {
           store_id?: string
         }
         Relationships: [
-          { foreignKeyName: "commissions_order_item_id_fkey"; columns: ["order_item_id"]; referencedRelation: "order_items"; referencedColumns: ["id"] },
-          { foreignKeyName: "commissions_store_id_fkey"; columns: ["store_id"]; referencedRelation: "stores"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "commissions_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "commissions_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
         ]
       }
       community_posts: {
@@ -104,8 +121,20 @@ export type Database = {
           product_id?: string | null
         }
         Relationships: [
-          { foreignKeyName: "community_posts_author_id_fkey"; columns: ["author_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] },
-          { foreignKeyName: "community_posts_product_id_fkey"; columns: ["product_id"]; referencedRelation: "products"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "community_posts_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_posts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
         ]
       }
       favorites: {
@@ -131,9 +160,27 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          { foreignKeyName: "favorites_product_id_fkey"; columns: ["product_id"]; referencedRelation: "products"; referencedColumns: ["id"] },
-          { foreignKeyName: "favorites_store_id_fkey"; columns: ["store_id"]; referencedRelation: "stores"; referencedColumns: ["id"] },
-          { foreignKeyName: "favorites_user_id_fkey"; columns: ["user_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "favorites_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favorites_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "favorites_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       order_items: {
@@ -171,9 +218,27 @@ export type Database = {
           unit_price?: number
         }
         Relationships: [
-          { foreignKeyName: "order_items_order_id_fkey"; columns: ["order_id"]; referencedRelation: "orders"; referencedColumns: ["id"] },
-          { foreignKeyName: "order_items_product_id_fkey"; columns: ["product_id"]; referencedRelation: "products"; referencedColumns: ["id"] },
-          { foreignKeyName: "order_items_store_id_fkey"; columns: ["store_id"]; referencedRelation: "stores"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
         ]
       }
       orders: {
@@ -205,7 +270,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          { foreignKeyName: "orders_buyer_id_fkey"; columns: ["buyer_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "orders_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       post_comments: {
@@ -231,8 +302,20 @@ export type Database = {
           post_id?: string
         }
         Relationships: [
-          { foreignKeyName: "post_comments_author_id_fkey"; columns: ["author_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] },
-          { foreignKeyName: "post_comments_post_id_fkey"; columns: ["post_id"]; referencedRelation: "community_posts"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "post_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_comments_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
         ]
       }
       post_likes: {
@@ -255,8 +338,20 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
-          { foreignKeyName: "post_likes_post_id_fkey"; columns: ["post_id"]; referencedRelation: "community_posts"; referencedColumns: ["id"] },
-          { foreignKeyName: "post_likes_user_id_fkey"; columns: ["user_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "post_likes_post_id_fkey"
+            columns: ["post_id"]
+            isOneToOne: false
+            referencedRelation: "community_posts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "post_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       product_images: {
@@ -285,7 +380,49 @@ export type Database = {
           url?: string
         }
         Relationships: [
-          { foreignKeyName: "product_images_product_id_fkey"; columns: ["product_id"]; referencedRelation: "products"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "product_images_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_likes: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_likes_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       products: {
@@ -338,42 +475,69 @@ export type Database = {
           weight_grams?: number | null
         }
         Relationships: [
-          { foreignKeyName: "products_category_id_fkey"; columns: ["category_id"]; referencedRelation: "categories"; referencedColumns: ["id"] },
-          { foreignKeyName: "products_store_id_fkey"; columns: ["store_id"]; referencedRelation: "stores"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "products_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
         ]
       }
       profiles: {
         Row: {
           avatar_url: string | null
           city: string | null
+          cnpj: string | null
+          cpf: string | null
           created_at: string
+          document_status: string
           full_name: string
           id: string
+          id_document_url: string | null
           phone: string | null
           role: Database["public"]["Enums"]["user_role"]
-          state: string
+          state: string | null
+          terms_accepted_at: string | null
           updated_at: string
         }
         Insert: {
           avatar_url?: string | null
           city?: string | null
+          cnpj?: string | null
+          cpf?: string | null
           created_at?: string
+          document_status?: string
           full_name: string
           id: string
+          id_document_url?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
-          state?: string
+          state?: string | null
+          terms_accepted_at?: string | null
           updated_at?: string
         }
         Update: {
           avatar_url?: string | null
           city?: string | null
+          cnpj?: string | null
+          cpf?: string | null
           created_at?: string
+          document_status?: string
           full_name?: string
           id?: string
+          id_document_url?: string | null
           phone?: string | null
           role?: Database["public"]["Enums"]["user_role"]
-          state?: string
+          state?: string | null
+          terms_accepted_at?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -410,10 +574,115 @@ export type Database = {
           store_id?: string
         }
         Relationships: [
-          { foreignKeyName: "reviews_buyer_id_fkey"; columns: ["buyer_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] },
-          { foreignKeyName: "reviews_order_item_id_fkey"; columns: ["order_item_id"]; referencedRelation: "order_items"; referencedColumns: ["id"] },
-          { foreignKeyName: "reviews_product_id_fkey"; columns: ["product_id"]; referencedRelation: "products"; referencedColumns: ["id"] },
-          { foreignKeyName: "reviews_store_id_fkey"; columns: ["store_id"]; referencedRelation: "stores"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "reviews_buyer_id_fkey"
+            columns: ["buyer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_order_item_id_fkey"
+            columns: ["order_item_id"]
+            isOneToOne: false
+            referencedRelation: "order_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      seller_verifications: {
+        Row: {
+          address_city: string
+          address_complement: string | null
+          address_neighborhood: string
+          address_number: string
+          address_state: string
+          address_street: string
+          cep: string
+          cnpj: string | null
+          cpf: string
+          created_at: string
+          document_status: string
+          id_document_path: string | null
+          rejection_reason: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          submitted_at: string
+          terms_accepted_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          address_city: string
+          address_complement?: string | null
+          address_neighborhood: string
+          address_number: string
+          address_state: string
+          address_street: string
+          cep: string
+          cnpj?: string | null
+          cpf: string
+          created_at?: string
+          document_status?: string
+          id_document_path?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          submitted_at?: string
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          address_city?: string
+          address_complement?: string | null
+          address_neighborhood?: string
+          address_number?: string
+          address_state?: string
+          address_street?: string
+          cep?: string
+          cnpj?: string | null
+          cpf?: string
+          created_at?: string
+          document_status?: string
+          id_document_path?: string | null
+          rejection_reason?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          submitted_at?: string
+          terms_accepted_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "seller_verifications_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "seller_verifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       store_contacts: {
@@ -442,13 +711,60 @@ export type Database = {
           value?: string
         }
         Relationships: [
-          { foreignKeyName: "store_contacts_store_id_fkey"; columns: ["store_id"]; referencedRelation: "stores"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "store_contacts_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_likes: {
+        Row: {
+          created_at: string
+          id: string
+          store_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          store_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          store_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_likes_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "store_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
       stores: {
         Row: {
           address: string | null
+          address_complement: string | null
+          address_neighborhood: string | null
+          address_number: string | null
+          address_street: string | null
           banner_url: string | null
+          cep: string | null
           city: string
           commission_rate: number
           created_at: string
@@ -467,7 +783,12 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          address_complement?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_street?: string | null
           banner_url?: string | null
+          cep?: string | null
           city: string
           commission_rate?: number
           created_at?: string
@@ -486,7 +807,12 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          address_complement?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_street?: string | null
           banner_url?: string | null
+          cep?: string | null
           city?: string
           commission_rate?: number
           created_at?: string
@@ -504,11 +830,19 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          { foreignKeyName: "stores_owner_id_fkey"; columns: ["owner_id"]; referencedRelation: "profiles"; referencedColumns: ["id"] }
+          {
+            foreignKeyName: "stores_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
-    Views: Record<string, never>
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
       unaccent: {
         Args: { "": string }
@@ -523,7 +857,9 @@ export type Database = {
       store_status: "pending" | "active" | "suspended"
       user_role: "buyer" | "seller" | "admin"
     }
-    CompositeTypes: Record<string, never>
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
 

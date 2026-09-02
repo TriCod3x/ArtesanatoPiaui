@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ShoppingCart, Heart, Menu, X, Search, LogOut, LayoutDashboard, Sun, Moon, Monitor } from "lucide-react";
+import { ShoppingCart, Heart, Menu, X, Search, LogOut, LayoutDashboard, ShieldCheck, Sun, Moon, Monitor } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
@@ -107,6 +107,14 @@ export function Header() {
                 <Link href="/dashboard">
                   <Button variant="ghost" size="icon" className="text-cream hover:text-terracota hover:bg-cream/10" title="Dashboard">
                     <LayoutDashboard size={20} />
+                  </Button>
+                </Link>
+              )}
+
+              {role === "admin" && (
+                <Link href="/admin/lojas">
+                  <Button variant="ghost" size="icon" className="text-cream hover:text-terracota hover:bg-cream/10" title="Administração">
+                    <ShieldCheck size={20} />
                   </Button>
                 </Link>
               )}

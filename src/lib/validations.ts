@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isValidCPF, isValidCNPJ, onlyDigits } from "@/lib/utils";
 
 export const signInSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -53,6 +54,74 @@ export const commentSchema = z.object({
     .min(1, "Escreva um comentário")
     .max(500, "Máximo de 500 caracteres"),
 });
+
+// ── Cadastro de vendedor (KYC-lite) ─────────────────────────────────────────
+
+export const MAX_ID_DOCUMENT_BYTES = 5 * 1024 * 1024; // 5MB
+export const ACCEPTED_ID_DOCUMENT_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "application/pdf",
+] as const;
+
+/** Etapa 1 — dados da conta. */
+export const sellerAccountSchema = z.object({
+  full_name: z.string().trim().min(2, "Nome deve ter no mínimo 2 caracteres"),
+  email: z.string().trim().email("Email inválido"),
+  password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
+});
+
+/** Etapa 2 — CPF / CNPJ. */
+export const sellerDocumentIdsSchema = z.object({
+  cpf: z
+    .string()
+    .trim()
+    .refine((v) => isValidCPF(v), "CPF inválido"),
+  cnpj: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v && onlyDigits(v).length > 0 ? v : undefined))
+    .refine((v) => v === undefined || isValidCNPJ(v), "CNPJ inválido"),
+});
+
+/** Etapa 3 — endereço (preenchido em parte pela busca de CEP). */
+export const sellerAddressSchema = z.object({
+  cep: z
+    .string()
+    .trim()
+    .refine((v) => onlyDigits(v).length === 8, "CEP deve ter 8 dígitos"),
+  address_street: z.string().trim().min(3, "Informe a rua"),
+  address_number: z.string().trim().min(1, "Informe o número"),
+  address_complement: z.string().trim().optional(),
+  address_neighborhood: z.string().trim().min(2, "Informe o bairro"),
+  address_city: z.string().trim().min(2, "Informe a cidade"),
+  address_state: z
+    .string()
+    .trim()
+    .length(2, "UF deve ter 2 letras")
+    .transform((v) => v.toUpperCase()),
+});
+
+/** Etapa 5 — termos de uso. */
+export const sellerTermsSchema = z.object({
+  accept_terms: z.literal(true, {
+    error: "Você precisa aceitar os termos de uso para continuar",
+  }),
+});
+
+/** Payload completo recebido pela server action `submitSellerRequirements`. */
+export const submitSellerRequirementsSchema = sellerDocumentIdsSchema
+  .and(sellerAddressSchema)
+  .and(sellerTermsSchema);
+
+export type SellerAccountInput = z.infer<typeof sellerAccountSchema>;
+export type SellerDocumentIdsInput = z.infer<typeof sellerDocumentIdsSchema>;
+export type SellerAddressInput = z.infer<typeof sellerAddressSchema>;
+export type SellerTermsInput = z.infer<typeof sellerTermsSchema>;
+export type SubmitSellerRequirementsInput = z.infer<
+  typeof submitSellerRequirementsSchema
+>;
 
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
