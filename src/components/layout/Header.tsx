@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ShoppingCart, Menu, X, Search, LayoutDashboard, Sun, Moon, Monitor } from "lucide-react";
+import { ShoppingCart, Menu, X, Search, LayoutDashboard, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
@@ -11,27 +11,13 @@ import { useCart } from "@/hooks/useCart";
 import { useTheme } from "@/components/shared/ThemeProvider";
 import { UserMenu } from "@/components/layout/UserMenu";
 
-const THEME_CYCLE = ["light", "dark", "system"] as const;
-type Theme = (typeof THEME_CYCLE)[number];
-
-function ThemeIcon({ theme }: { theme: Theme }) {
-  if (theme === "dark") return <Moon size={18} />;
-  if (theme === "system") return <Monitor size={18} />;
-  return <Sun size={18} />;
-}
-
 export function Header() {
   const { user, profile, role } = useAuth();
   const { count, openCart } = useCart();
-  const { theme, setTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
-
-  const cycleTheme = () => {
-    const idx = THEME_CYCLE.indexOf(theme as Theme);
-    setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]);
-  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -79,15 +65,16 @@ export function Header() {
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1">
-          {/* Theme toggle */}
+          {/* Theme toggle — claro ↔ escuro */}
           <Button
             variant="ghost"
             size="icon"
-            onClick={cycleTheme}
+            onClick={toggleTheme}
             className="text-cream hover:text-terracota hover:bg-cream/10 transition-colors duration-300"
-            title={`Tema: ${theme}`}
+            title={theme === "dark" ? "Mudar para o modo claro" : "Mudar para o modo escuro"}
+            aria-label={theme === "dark" ? "Mudar para o modo claro" : "Mudar para o modo escuro"}
           >
-            <ThemeIcon theme={theme as Theme} />
+            {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
           </Button>
 
           {user ? (
