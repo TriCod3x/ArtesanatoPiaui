@@ -6,7 +6,8 @@ import Link from "next/link";
 import { Heart, MessageCircle, Link2, Trash2, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { toggleLike, addComment, getComments, deletePost } from "@/actions/community";
-import { cn, formatPrice, timeAgo } from "@/lib/utils";
+import { cn, formatPrice } from "@/lib/utils";
+import { RelativeTime } from "@/components/shared/RelativeTime";
 import type { PostWithRelations, CommentWithAuthor } from "@/types";
 
 interface PostCardProps {
@@ -152,9 +153,7 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
           <p className="font-semibold text-dark dark:text-[#f5edd6] text-sm truncate">
             {authorName}
           </p>
-          <time className="text-xs text-muted-foreground" dateTime={post.created_at}>
-            {timeAgo(post.created_at)}
-          </time>
+          <RelativeTime className="text-xs text-muted-foreground" date={post.created_at} />
         </div>
         {isOwner && (
           <button
@@ -277,9 +276,10 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
                         {comment.content}
                       </p>
                     </div>
-                    <span className="text-[11px] text-muted-foreground pl-1">
-                      {timeAgo(comment.created_at)}
-                    </span>
+                    <RelativeTime
+                      className="text-[11px] text-muted-foreground pl-1"
+                      date={comment.created_at}
+                    />
                   </div>
                 </li>
               ))}
