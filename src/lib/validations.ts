@@ -53,6 +53,21 @@ export const postSchema = z.object({
   product_id: z.string().uuid("Produto inválido").optional().or(z.literal("")),
 });
 
+export const profileSchema = z.object({
+  full_name: z.string().trim().min(2, "Nome deve ter no mínimo 2 caracteres"),
+  city: z
+    .string()
+    .trim()
+    .max(80, "Cidade muito longa")
+    .optional()
+    .or(z.literal("")),
+  avatar_url: z
+    .string()
+    .url("URL de imagem inválida")
+    .optional()
+    .or(z.literal("")),
+});
+
 export const commentSchema = z.object({
   content: z
     .string()
@@ -135,3 +150,4 @@ export type StoreInput = z.infer<typeof storeSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
 export type PostInput = z.infer<typeof postSchema>;
 export type CommentInput = z.infer<typeof commentSchema>;
+export type ProfileInput = z.infer<typeof profileSchema>;

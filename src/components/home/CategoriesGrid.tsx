@@ -17,7 +17,7 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
       <path d="M9 21h6" />
     </svg>
   ),
-  "rendas-bordados": (
+  bordado: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
       <circle cx="17" cy="4" r="2" />
       <path d="M15.5 5.5L6 15l-2 5 5-2 9.5-9.5" />
@@ -37,7 +37,7 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
       <path d="M4 9h16" />
     </svg>
   ),
-  palha: (
+  "redes-tecidos": (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
       <path d="M3 9h18" />
       <path d="M3 15h18" />
@@ -47,13 +47,13 @@ const CATEGORY_ICONS: Record<string, React.ReactNode> = {
       <path d="M17 6l2 12" />
     </svg>
   ),
-  bijuterias: (
+  bijuteria: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
       <path d="M6 9l6-6 6 6-6 12-6-12z" />
       <path d="M6 9h12" />
     </svg>
   ),
-  pinturas: (
+  pintura: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-7 h-7">
       <circle cx="13.5" cy="6.5" r="1.5" />
       <circle cx="17.5" cy="10.5" r="1.5" />
@@ -91,7 +91,7 @@ export function CategoriesGrid() {
         {CATEGORIES.map((cat) => (
           <Link
             key={cat.slug}
-            href={`/categorias/${cat.slug}`}
+            href={`/produtos?categoria=${cat.slug}`}
             className="group flex flex-col items-center gap-2 p-4 bg-white dark:bg-[#2a1e0f] rounded-2xl border border-border dark:border-[#3d2c1a] hover:border-terracota hover:shadow-md transition-all text-center"
           >
             <span className="text-muted-foreground group-hover:text-terracota transition-colors">

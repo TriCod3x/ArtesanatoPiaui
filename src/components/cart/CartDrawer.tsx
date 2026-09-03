@@ -4,6 +4,7 @@ import Image from "next/image";
 import { X, Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { formatPrice } from "@/lib/utils";
+import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useEffect } from "react";
@@ -70,7 +71,7 @@ export function CartDrawer() {
             </div>
           ) : (
             items.map(({ product, quantity }) => {
-              const imageUrl = product.images?.[0]?.url ?? "/images/placeholder-product.png";
+              const imageUrl = product.images?.[0]?.url ?? PLACEHOLDER_PRODUCT_IMG;
               return (
                 <div key={product.id} className="flex gap-3 bg-[#faf7f2] dark:bg-[#1a1208] rounded-xl p-3">
                   <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">

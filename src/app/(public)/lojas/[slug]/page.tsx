@@ -42,6 +42,12 @@ export default async function LojaPage({
   const whatsapp = store.contacts?.find((c) => c.type === "whatsapp")?.value;
   const instagram = store.contacts?.find((c) => c.type === "instagram")?.value;
 
+  const { data: owner } = await supabase
+    .from("profiles")
+    .select("full_name, avatar_url")
+    .eq("id", store.owner_id)
+    .maybeSingle();
+
   const { data: productsData } = await supabase
     .from("products")
     .select(`
@@ -87,6 +93,20 @@ export default async function LojaPage({
             </div>
             <div className="flex-1">
               <h1 className="font-display text-3xl font-bold text-dark dark:text-[#f5edd6]">{store.name}</h1>
+              {owner?.full_name && (
+                <div className="flex items-center gap-2 mt-1.5 text-sm text-muted-foreground">
+                  <span className="w-6 h-6 rounded-full overflow-hidden bg-cream dark:bg-[#3d2c1a] flex items-center justify-center flex-shrink-0 relative">
+                    {owner.avatar_url ? (
+                      <Image src={owner.avatar_url} alt={owner.full_name} fill className="object-cover" sizes="24px" />
+                    ) : (
+                      <span className="text-[11px] font-bold text-terracota">
+                        {owner.full_name[0]?.toUpperCase()}
+                      </span>
+                    )}
+                  </span>
+                  <span>por {owner.full_name}</span>
+                </div>
+              )}
               <div className="flex items-center flex-wrap gap-3 mt-2 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1"><MapPin size={14} />{store.city}, {store.state}</span>
                 {store.rating && store.rating > 0 && (
