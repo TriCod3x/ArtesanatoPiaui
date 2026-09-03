@@ -3,35 +3,21 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ShoppingCart, Heart, Menu, X, Search, LogOut, LayoutDashboard, ShieldCheck, Sun, Moon, Monitor } from "lucide-react";
+import { ShoppingCart, Menu, X, Search, LayoutDashboard, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { useTheme } from "@/components/shared/ThemeProvider";
-import { createClient } from "@/lib/supabase/client";
-
-const THEME_CYCLE = ["light", "dark", "system"] as const;
-type Theme = (typeof THEME_CYCLE)[number];
-
-function ThemeIcon({ theme }: { theme: Theme }) {
-  if (theme === "dark") return <Moon size={18} />;
-  if (theme === "system") return <Monitor size={18} />;
-  return <Sun size={18} />;
-}
+import { UserMenu } from "@/components/layout/UserMenu";
 
 export function Header() {
   const { user, profile, role } = useAuth();
   const { count, openCart } = useCart();
-  const { theme, setTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [search, setSearch] = useState("");
-
-  const cycleTheme = () => {
-    const idx = THEME_CYCLE.indexOf(theme as Theme);
-    setTheme(THEME_CYCLE[(idx + 1) % THEME_CYCLE.length]);
-  };
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,15 +25,6 @@ export function Header() {
       router.push(`/produtos?q=${encodeURIComponent(search.trim())}`);
     }
   };
-
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/");
-    router.refresh();
-  };
-
-  const displayName = profile?.full_name?.split(" ")[0] ?? "você";
 
   return (
     <header className="sticky top-0 z-50 bg-dark dark:bg-[#110c05] border-b border-dark/20 dark:border-[#3d2c1a] shadow-sm transition-colors duration-300">
@@ -88,43 +65,20 @@ export function Header() {
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1">
-          {/* Theme toggle */}
+          {/* Theme toggle — claro ↔ escuro */}
           <Button
             variant="ghost"
             size="icon"
-            onClick={cycleTheme}
+            onClick={toggleTheme}
             className="text-cream hover:text-terracota hover:bg-cream/10 transition-colors duration-300"
-            title={`Tema: ${theme}`}
+            title={theme === "dark" ? "Mudar para o modo claro" : "Mudar para o modo escuro"}
+            aria-label={theme === "dark" ? "Mudar para o modo claro" : "Mudar para o modo escuro"}
           >
-            <ThemeIcon theme={theme as Theme} />
+            {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
           </Button>
 
           {user ? (
             <>
-              <span className="hidden md:block text-sm text-cream/80 mr-2">Olá, {displayName}</span>
-
-              {role === "seller" && (
-                <Link href="/dashboard">
-                  <Button variant="ghost" size="icon" className="text-cream hover:text-terracota hover:bg-cream/10" title="Dashboard">
-                    <LayoutDashboard size={20} />
-                  </Button>
-                </Link>
-              )}
-
-              {role === "admin" && (
-                <Link href="/admin/lojas">
-                  <Button variant="ghost" size="icon" className="text-cream hover:text-terracota hover:bg-cream/10" title="Administração">
-                    <ShieldCheck size={20} />
-                  </Button>
-                </Link>
-              )}
-
-              <Link href="/favoritos">
-                <Button variant="ghost" size="icon" className="text-cream hover:text-terracota hover:bg-cream/10">
-                  <Heart size={20} />
-                </Button>
-              </Link>
-
               <Button
                 variant="ghost"
                 size="icon"
@@ -139,15 +93,11 @@ export function Header() {
                 )}
               </Button>
 
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleSignOut}
-                className="text-cream hover:text-terracota hover:bg-cream/10"
-                title="Sair"
-              >
-                <LogOut size={20} />
-              </Button>
+              <UserMenu
+                fullName={profile?.full_name ?? null}
+                avatarUrl={profile?.avatar_url ?? null}
+                role={role}
+              />
             </>
           ) : (
             <>
@@ -215,10 +165,17 @@ export function Header() {
               <Link href="/cadastro" className="text-terracota font-semibold py-2" onClick={() => setMenuOpen(false)}>Cadastrar</Link>
             </>
           )}
-          {user && role === "seller" && (
-            <Link href="/dashboard" className="text-cream hover:text-terracota py-2 flex items-center gap-2" onClick={() => setMenuOpen(false)}>
-              <LayoutDashboard size={16} /> Dashboard
-            </Link>
+          {user && (
+            <>
+              <Link href="/perfil" className="text-cream hover:text-terracota py-2" onClick={() => setMenuOpen(false)}>Meu perfil</Link>
+              <Link href="/favoritos" className="text-cream hover:text-terracota py-2" onClick={() => setMenuOpen(false)}>Favoritos</Link>
+              <Link href="/pedidos" className="text-cream hover:text-terracota py-2" onClick={() => setMenuOpen(false)}>Meus pedidos</Link>
+              {(role === "seller" || role === "admin") && (
+                <Link href="/dashboard" className="text-cream hover:text-terracota py-2 flex items-center gap-2" onClick={() => setMenuOpen(false)}>
+                  <LayoutDashboard size={16} /> Dashboard
+                </Link>
+              )}
+            </>
           )}
         </nav>
       )}

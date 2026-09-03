@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ShoppingCart } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
+import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import { useCart } from "@/hooks/useCart";
 import { LikeButton } from "@/components/community/LikeButton";
 import type { ProductWithRelations } from "@/types";
@@ -18,7 +19,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const images = [...(product.images ?? [])].sort(
     (a, b) => Number(b.is_cover) - Number(a.is_cover) || a.position - b.position,
   );
-  const imageUrl = images[0]?.url ?? "/images/placeholder-product.png";
+  const imageUrl = images[0]?.url ?? PLACEHOLDER_PRODUCT_IMG;
 
   const handleAddToCart = (e: React.MouseEvent) => {
     e.preventDefault();

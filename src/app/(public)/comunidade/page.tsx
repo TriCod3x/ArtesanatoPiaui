@@ -7,6 +7,11 @@ import { PostCard } from "@/components/community/PostCard";
 import { CreatePostForm } from "@/components/community/CreatePostForm";
 import type { PostWithRelations, PostAuthor } from "@/types";
 
+// Página sempre renderizada por requisição: depende do usuário logado
+// (formulário de novo post, "curti", produtos da loja). Nunca deve ser servida
+// de cache entre usuários.
+export const dynamic = "force-dynamic";
+
 interface RawPost {
   id: string;
   author_id: string;
@@ -100,7 +105,11 @@ export default async function ComunidadePage() {
           </header>
 
           {user && profile ? (
-            <CreatePostForm author={profile} products={sellerProducts} />
+            <CreatePostForm
+              key={profile.id}
+              author={profile}
+              products={sellerProducts}
+            />
           ) : (
             <div
               className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] shadow-sm p-5 mb-8 text-center"

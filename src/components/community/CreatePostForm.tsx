@@ -91,6 +91,7 @@ export function CreatePostForm({ author, products = [] }: CreatePostFormProps) {
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
+      autoComplete="off"
       className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] shadow-sm p-4 mb-8"
       style={{ borderRadius: "16px" }}
     >
@@ -110,6 +111,9 @@ export function CreatePostForm({ author, products = [] }: CreatePostFormProps) {
             {...register("content")}
             rows={3}
             maxLength={1000}
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
             placeholder="Compartilhe uma nova peça, um bastidor do seu trabalho..."
             className="resize-none border-0 bg-transparent px-0 text-[15px] focus-visible:ring-0 text-dark dark:text-[#f5edd6]"
           />

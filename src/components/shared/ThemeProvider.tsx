@@ -2,56 +2,65 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "light" | "dark" | "system";
-type ResolvedTheme = "light" | "dark";
+type Theme = "light" | "dark";
+
+const STORAGE_KEY = "theme";
 
 interface ThemeContextValue {
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  resolvedTheme: ResolvedTheme;
+  /** Alterna direto entre claro e escuro. */
+  toggleTheme: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue>({
-  theme: "system",
+  theme: "light",
   setTheme: () => {},
-  resolvedTheme: "light",
+  toggleTheme: () => {},
 });
 
+/**
+ * Tema inicial: a preferência manual salva no localStorage tem prioridade.
+ * Se o usuário nunca escolheu, usa `prefers-color-scheme` só como padrão da
+ * primeira visita.
+ */
+function readInitialTheme(): Theme {
+  if (typeof window === "undefined") return "light";
+  const saved = window.localStorage.getItem(STORAGE_KEY);
+  if (saved === "dark" || saved === "light") return saved;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light");
+  const [theme, setThemeState] = useState<Theme>(readInitialTheme);
 
+  // Aplica a classe no <html>.
   useEffect(() => {
-    const saved = localStorage.getItem("theme") as Theme | null;
-    if (saved === "dark" || saved === "light" || saved === "system") {
-      setThemeState(saved);
-    }
-  }, []);
-
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-
-    const apply = (t: Theme) => {
-      const resolved: ResolvedTheme =
-        t === "dark" ? "dark" : t === "light" ? "light" : mq.matches ? "dark" : "light";
-      setResolvedTheme(resolved);
-      document.documentElement.classList.toggle("dark", resolved === "dark");
-    };
-
-    apply(theme);
-
-    const listener = () => { if (theme === "system") apply("system"); };
-    mq.addEventListener("change", listener);
-    return () => mq.removeEventListener("change", listener);
+    document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
+  // Enquanto o usuário não escolheu manualmente, acompanha o sistema ao vivo.
+  // Depois do primeiro clique (localStorage preenchido) não alterna mais sozinho.
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    const listener = () => {
+      if (!window.localStorage.getItem(STORAGE_KEY)) {
+        setThemeState(mq.matches ? "dark" : "light");
+      }
+    };
+    mq.addEventListener("change", listener);
+    return () => mq.removeEventListener("change", listener);
+  }, []);
+
   const setTheme = (t: Theme) => {
-    localStorage.setItem("theme", t);
+    window.localStorage.setItem(STORAGE_KEY, t);
     setThemeState(t);
   };
 
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, resolvedTheme }}>
+    <ThemeContext.Provider value={{ theme, setTheme, toggleTheme }}>
       {children}
     </ThemeContext.Provider>
   );

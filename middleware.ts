@@ -9,7 +9,7 @@ export async function middleware(request: NextRequest) {
   const role = user?.user_metadata?.role as string | undefined;
 
   // /seller/* routes
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/minha-loja") || pathname.startsWith("/pedidos") || pathname.startsWith("/meus-produtos")) {
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/minha-loja") || pathname.startsWith("/meus-produtos")) {
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
     }
@@ -25,8 +25,12 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // /buyer/* routes (favoritos, carrinho, pedidos do comprador)
-  if (pathname.startsWith("/favoritos")) {
+  // Rotas que exigem apenas login (comprador ou vendedor)
+  if (
+    pathname.startsWith("/favoritos") ||
+    pathname.startsWith("/perfil") ||
+    pathname.startsWith("/pedidos")
+  ) {
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
     }

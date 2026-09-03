@@ -13,6 +13,7 @@ const WhatsAppIcon = ({ size = 18 }: { size?: number }) => (
 );
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { Button } from "@/components/ui/button";
@@ -78,7 +79,7 @@ export default function ProdutoPage() {
 
   const sortedImages = [...(product.images ?? [])].sort((a, b) => a.position - b.position);
   const images = sortedImages.length ? sortedImages : null;
-  const coverUrl = images?.[imgIdx]?.url ?? "/images/placeholder-product.png";
+  const coverUrl = images?.[imgIdx]?.url ?? PLACEHOLDER_PRODUCT_IMG;
   const storeContacts = (product.store as { contacts?: { type: string; value: string }[] } | null)?.contacts;
   const whatsapp = storeContacts?.find((c) => c.type === "whatsapp")?.value;
 
