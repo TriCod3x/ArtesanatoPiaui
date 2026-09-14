@@ -1,29 +1,11 @@
-import Link from "next/link";
 import { FileCheck2 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCEP, formatCNPJ, formatCPF } from "@/lib/utils";
 import { DocumentReviewCard } from "./DocumentReviewCard";
+import { StoreManagement, type PendingStoreRow, type StoreRow } from "./StoreManagement";
 import type { DocumentStatus } from "@/types";
 
 export const metadata = { title: "Administração — Lojas" };
-
-const STORE_STATUS_LABEL: Record<string, string> = {
-  pending: "Em análise",
-  active: "Ativa",
-  suspended: "Suspensa",
-};
-
-const DOC_STATUS_LABEL: Record<DocumentStatus, string> = {
-  pending: "Documentos em análise",
-  approved: "Documentos aprovados",
-  rejected: "Documentos rejeitados",
-};
-
-const DOC_STATUS_CLASS: Record<DocumentStatus, string> = {
-  pending: "bg-amber/15 text-amber",
-  approved: "bg-capim/15 text-capim",
-  rejected: "bg-destructive/15 text-destructive",
-};
 
 export default async function AdminLojasPage() {
   const admin = createAdminClient();
@@ -36,7 +18,7 @@ export default async function AdminLojasPage() {
         .order("submitted_at", { ascending: false }),
       admin
         .from("stores")
-        .select("id, name, slug, status, owner_id, created_at")
+        .select("id, name, slug, status, owner_id, city, created_at")
         .order("created_at", { ascending: false }),
       admin.from("profiles").select("id, full_name"),
     ]);
@@ -56,6 +38,30 @@ export default async function AdminLojasPage() {
     (v.address_complement ? ` - ${v.address_complement}` : "") +
     ` — ${v.address_neighborhood}, ${v.address_city}/${v.address_state}` +
     ` — CEP ${formatCEP(v.cep)}`;
+
+  const docStatusOf = (ownerId: string) =>
+    verificationByUser.get(ownerId)?.document_status as DocumentStatus | undefined;
+
+  const pendingStores: PendingStoreRow[] = (stores ?? [])
+    .filter((s) => s.status === "pending")
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      slug: s.slug,
+      ownerName: nameById.get(s.owner_id) ?? "Vendedor",
+      city: s.city,
+      createdAt: s.created_at,
+      docStatus: docStatusOf(s.owner_id),
+    }));
+
+  const allStoreRows: StoreRow[] = (stores ?? []).map((s) => ({
+    id: s.id,
+    name: s.name,
+    slug: s.slug,
+    status: s.status,
+    ownerName: nameById.get(s.owner_id) ?? "—",
+    docStatus: docStatusOf(s.owner_id),
+  }));
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-10">
@@ -100,72 +106,8 @@ export default async function AdminLojasPage() {
         )}
       </section>
 
-      {/* Todas as lojas */}
-      <section>
-        <h2 className="font-semibold text-lg text-dark dark:text-[#f5edd6] mb-4">
-          Todas as lojas
-        </h2>
-        <div className="overflow-x-auto bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] rounded-xl">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border dark:border-[#3d2c1a] text-left text-muted-foreground">
-                <th className="px-4 py-3 font-medium">Loja</th>
-                <th className="px-4 py-3 font-medium">Responsável</th>
-                <th className="px-4 py-3 font-medium">Status da loja</th>
-                <th className="px-4 py-3 font-medium">Documentos</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(stores ?? []).length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
-                    Nenhuma loja cadastrada.
-                  </td>
-                </tr>
-              )}
-              {(stores ?? []).map((s) => {
-                const doc = verificationByUser.get(s.owner_id)?.document_status as
-                  | DocumentStatus
-                  | undefined;
-                return (
-                  <tr
-                    key={s.id}
-                    className="border-b border-border/60 dark:border-[#3d2c1a]/60 last:border-0"
-                  >
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/lojas/${s.slug}`}
-                        className="text-dark dark:text-[#f5edd6] font-medium hover:text-terracota"
-                      >
-                        {s.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {nameById.get(s.owner_id) ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {STORE_STATUS_LABEL[s.status] ?? s.status}
-                    </td>
-                    <td className="px-4 py-3">
-                      {doc ? (
-                        <span
-                          className={`text-xs font-semibold rounded-full px-2 py-0.5 ${DOC_STATUS_CLASS[doc]}`}
-                        >
-                          {DOC_STATUS_LABEL[doc]}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          Não enviados
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      {/* Aprovação de lojas */}
+      <StoreManagement pendingStores={pendingStores} allStores={allStoreRows} />
     </main>
   );
 }

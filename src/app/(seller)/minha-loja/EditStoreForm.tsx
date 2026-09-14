@@ -54,7 +54,11 @@ export function EditStoreForm({ store, whatsapp, instagram }: EditStoreFormProps
     if (result?.error) {
       toast.error(result.error);
     } else {
-      toast.success("Loja atualizada com sucesso!");
+      toast.success(
+        result?.resubmitted
+          ? "Loja atualizada e reenviada para análise!"
+          : "Loja atualizada com sucesso!",
+      );
       router.refresh();
     }
     setSaving(false);
