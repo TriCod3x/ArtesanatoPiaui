@@ -80,3 +80,19 @@ export const ORDER_STATUS = {
   DELIVERED: "delivered",
   CANCELLED: "cancelled",
 } as const;
+
+export const PAYMENT_STATUS_LABEL: Record<string, string> = {
+  pending: "Aguardando pagamento",
+  paid: "Pago",
+  failed: "Falhou",
+  refunded: "Reembolsado",
+  cancelled: "Cancelado",
+};
+
+export const PAYMENT_STATUS_CLASS: Record<string, string> = {
+  pending: "bg-amber/15 text-amber",
+  paid: "bg-capim/15 text-capim",
+  failed: "bg-destructive/15 text-destructive",
+  refunded: "bg-muted text-muted-foreground",
+  cancelled: "bg-destructive/15 text-destructive",
+};

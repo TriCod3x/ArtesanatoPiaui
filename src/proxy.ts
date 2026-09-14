@@ -30,7 +30,8 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/favoritos") ||
     pathname.startsWith("/perfil") ||
     pathname.startsWith("/pedidos") ||
-    pathname.startsWith("/mensagens")
+    pathname.startsWith("/mensagens") ||
+    pathname.startsWith("/checkout")
   ) {
     if (!user) {
       return NextResponse.redirect(new URL("/login", request.url));
