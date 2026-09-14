@@ -1,30 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ShoppingCart, Menu, X, Search, LayoutDashboard, Sun, Moon } from "lucide-react";
+import { ShoppingCart, Menu, X, LayoutDashboard, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/useAuth";
 import { useCart } from "@/hooks/useCart";
 import { useTheme } from "@/components/shared/ThemeProvider";
 import { UserMenu } from "@/components/layout/UserMenu";
+import { SearchDropdown } from "@/components/layout/SearchDropdown";
 
 export function Header() {
   const { user, profile, role } = useAuth();
   const { count, openCart } = useCart();
   const { theme, toggleTheme } = useTheme();
-  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (search.trim()) {
-      router.push(`/produtos?q=${encodeURIComponent(search.trim())}`);
-    }
-  };
 
   return (
     <header className="sticky top-0 z-50 bg-dark dark:bg-[#110c05] border-b border-dark/20 dark:border-[#3d2c1a] shadow-sm transition-colors duration-300">
@@ -51,17 +41,10 @@ export function Header() {
         </nav>
 
         {/* Search — desktop */}
-        <form onSubmit={handleSearch} className="hidden md:flex flex-1 max-w-xl mx-auto relative">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar produtos, lojas, categorias..."
-            className="bg-cream/10 border-cream/20 text-cream placeholder:text-cream/50 pr-10 focus-visible:ring-terracota"
-          />
-          <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-cream/60 hover:text-cream">
-            <Search size={16} />
-          </button>
-        </form>
+        <SearchDropdown
+          className="hidden md:block flex-1 max-w-xl mx-auto"
+          placeholder="Buscar produtos..."
+        />
 
         {/* Actions */}
         <div className="ml-auto flex items-center gap-1">
@@ -140,17 +123,7 @@ export function Header() {
 
       {/* Mobile search */}
       <div className="md:hidden px-4 pb-3">
-        <form onSubmit={handleSearch} className="relative">
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar produtos..."
-            className="bg-cream/10 border-cream/20 text-cream placeholder:text-cream/50 pr-10 focus-visible:ring-terracota"
-          />
-          <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-cream/60 hover:text-cream">
-            <Search size={16} />
-          </button>
-        </form>
+        <SearchDropdown placeholder="Buscar produtos..." />
       </div>
 
       {/* Mobile menu */}

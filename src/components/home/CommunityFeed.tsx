@@ -1,6 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import { timeAgo } from "@/lib/utils";
+import { RelativeTime } from "@/components/shared/RelativeTime";
 import type { PostWithRelations } from "@/types";
 
 interface CommunityFeedProps {
@@ -66,7 +66,7 @@ export function CommunityFeed({ posts }: CommunityFeedProps) {
                   <span className="text-sm font-semibold text-dark dark:text-[#f5edd6] truncate block">
                     {post.author?.full_name ?? "Artesão"}
                   </span>
-                  <span className="text-xs text-muted-foreground">{timeAgo(post.created_at)}</span>
+                  <RelativeTime className="text-xs text-muted-foreground" date={post.created_at} />
                 </div>
               </div>
               <p className="text-sm text-dark dark:text-[#c4a882] leading-relaxed line-clamp-3">

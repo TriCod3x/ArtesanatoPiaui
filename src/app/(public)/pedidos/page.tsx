@@ -5,7 +5,8 @@ import { Package } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { formatPrice, timeAgo } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
+import { RelativeTime } from "@/components/shared/RelativeTime";
 import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import type { OrderStatus } from "@/types";
 
@@ -113,7 +114,8 @@ export default async function PedidosPage() {
                   <div className="flex items-center justify-between gap-3 pb-3 border-b border-border dark:border-[#3d2c1a]">
                     <div>
                       <p className="text-xs text-muted-foreground">
-                        Pedido #{order.id.slice(0, 8)} · {timeAgo(order.created_at)}
+                        Pedido #{order.id.slice(0, 8)} ·{" "}
+                        <RelativeTime date={order.created_at} />
                       </p>
                       <p className="font-bold text-terracota mt-0.5">
                         {formatPrice(order.total_amount)}
