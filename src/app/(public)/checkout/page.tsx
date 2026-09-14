@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { useCart } from "@/hooks/useCart";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, formatCPF, isValidCPF } from "@/lib/utils";
 import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import { createOrder } from "@/actions/orders";
 import { createPayment, getOrderPaymentStatus } from "@/actions/payments";
@@ -23,6 +23,8 @@ function CheckoutContent() {
   const { items, total, clear } = useCart();
 
   const [method, setMethod] = useState<PaymentMethod>("pix");
+  const [cpf, setCpf] = useState("");
+  const [cpfError, setCpfError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(() => searchParams.get("order"));
   const [payments, setPayments] = useState<StorePaymentResult[] | null>(null);
@@ -50,6 +52,11 @@ function CheckoutContent() {
   );
 
   const runCheckout = async (selectedMethod: PaymentMethod) => {
+    if (selectedMethod === "pix" && !isValidCPF(cpf)) {
+      setCpfError("Informe um CPF válido para pagar com Pix.");
+      return;
+    }
+    setCpfError(null);
     setSubmitting(true);
     setMethod(selectedMethod);
 
@@ -68,7 +75,11 @@ function CheckoutContent() {
       router.replace(`/checkout?order=${currentOrderId}`);
     }
 
-    const paymentResult = await createPayment(currentOrderId, selectedMethod);
+    const paymentResult = await createPayment(
+      currentOrderId,
+      selectedMethod,
+      selectedMethod === "pix" ? cpf : undefined,
+    );
     setSubmitting(false);
 
     if ("error" in paymentResult) {
@@ -249,6 +260,31 @@ function CheckoutContent() {
                     </button>
                   ))}
                 </div>
+
+                {method === "pix" && (
+                  <div className="mb-5">
+                    <label htmlFor="cpf" className="text-sm font-medium text-dark dark:text-[#f5edd6]">
+                      CPF do comprador
+                    </label>
+                    <input
+                      id="cpf"
+                      inputMode="numeric"
+                      placeholder="000.000.000-00"
+                      value={cpf}
+                      onChange={(e) => {
+                        setCpf(formatCPF(e.target.value));
+                        if (cpfError) setCpfError(null);
+                      }}
+                      className={`mt-1.5 w-full h-10 rounded-lg border bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30 ${
+                        cpfError ? "border-destructive" : "border-border dark:border-[#3d2c1a]"
+                      }`}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Exigido pela Mercado Pago pra pagamentos via Pix.
+                    </p>
+                    {cpfError && <p className="text-xs text-destructive mt-1">{cpfError}</p>}
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between mb-4">
                   <span className="font-semibold text-dark dark:text-[#f5edd6]">Total</span>

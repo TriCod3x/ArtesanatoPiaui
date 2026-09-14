@@ -379,6 +379,7 @@ export type Database = {
           id: string
           method: string | null
           order_id: string
+          payer_cpf: string | null
           pix_expires_at: string | null
           pix_qr_code: string | null
           pix_qr_code_url: string | null
@@ -396,6 +397,7 @@ export type Database = {
           id?: string
           method?: string | null
           order_id: string
+          payer_cpf?: string | null
           pix_expires_at?: string | null
           pix_qr_code?: string | null
           pix_qr_code_url?: string | null
@@ -413,6 +415,7 @@ export type Database = {
           id?: string
           method?: string | null
           order_id?: string
+          payer_cpf?: string | null
           pix_expires_at?: string | null
           pix_qr_code?: string | null
           pix_qr_code_url?: string | null

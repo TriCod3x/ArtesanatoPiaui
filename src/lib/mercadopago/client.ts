@@ -104,6 +104,7 @@ export interface CreatePixPaymentInput {
   description: string;
   applicationFee: number;
   payerEmail: string;
+  payerCpf: string;
   orderId: string;
   storeId: string;
 }
@@ -135,7 +136,10 @@ export async function createPixPayment(input: CreatePixPaymentInput): Promise<MP
       transaction_amount: round2(input.amount),
       description: input.description,
       payment_method_id: "pix",
-      payer: { email: input.payerEmail },
+      payer: {
+        email: input.payerEmail,
+        identification: { type: "CPF", number: input.payerCpf },
+      },
       application_fee: round2(input.applicationFee),
       notification_url: webhookUrl(input.orderId, input.storeId),
       external_reference: `${input.orderId}:${input.storeId}`,

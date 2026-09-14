@@ -8,6 +8,7 @@ import {
   getPayment,
 } from "@/lib/mercadopago/client";
 import { settlePayment } from "@/lib/mercadopago/settle";
+import { isValidCPF, onlyDigits } from "@/lib/utils";
 import type { PaymentMethod, StorePaymentResult } from "@/types";
 import type { Json } from "@/types/database";
 import type { User } from "@supabase/supabase-js";
@@ -93,10 +94,18 @@ async function assertOwnPendingOrder(
 export async function createPayment(
   orderId: string,
   method: PaymentMethod,
+  payerCpf?: string,
 ): Promise<{ error: string } | { success: true; payments: StorePaymentResult[] }> {
   const ctx = await assertOwnPendingOrder(orderId);
   if ("error" in ctx) return { error: ctx.error };
   const { user } = ctx;
+
+  // Cartão não precisa: o Checkout Pro coleta os dados do pagador na própria
+  // tela deles. Pix exige CPF na Payments API (payer.identification).
+  const cpfDigits = payerCpf ? onlyDigits(payerCpf) : "";
+  if (method === "pix" && !isValidCPF(cpfDigits)) {
+    return { error: "Informe um CPF válido para pagar com Pix." };
+  }
 
   const groups = await loadStoreGroups(orderId);
   if (!groups) return { error: "Pedido sem itens." };
@@ -127,6 +136,7 @@ export async function createPayment(
           description: `Pedido ${orderId.slice(0, 8)} — ${group.storeName}`,
           applicationFee: fee,
           payerEmail: user.email!,
+          payerCpf: cpfDigits,
           orderId,
           storeId: group.storeId,
         });
@@ -141,6 +151,7 @@ export async function createPayment(
             amount: group.amount,
             status: "pending",
             external_id: String(payment.id),
+            payer_cpf: cpfDigits,
             pix_qr_code: qr?.qr_code ?? null,
             // guarda o base64 do QR (não é uma URL — o nome da coluna é genérico)
             pix_qr_code_url: qr?.qr_code_base64 ?? null,
