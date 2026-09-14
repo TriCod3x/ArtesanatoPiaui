@@ -72,6 +72,25 @@ export interface CommentWithAuthor extends PostComment {
 export type Conversation = Tables<"conversations">
 export type Message = Tables<"messages">
 
+export type Payment = Tables<"payments">
+export type PaymentMethod = "pix" | "credit_card"
+export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "cancelled"
+
+/** Um pagamento por loja (split 1:1 — cada loja é cobrada com o token MP dela). */
+export interface StorePaymentResult {
+  storeId: string
+  storeName: string
+  method: PaymentMethod
+  status: PaymentStatus
+  amount: number
+  paymentId?: string
+  pixQrCode?: string | null
+  pixQrCodeBase64?: string | null
+  pixExpiresAt?: string | null
+  checkoutUrl?: string | null
+  error?: string
+}
+
 export interface ConversationSummary {
   id: string
   iAmBuyer: boolean
