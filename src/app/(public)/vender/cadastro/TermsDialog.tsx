@@ -34,7 +34,13 @@ export function TermsDialog({ label = "Ler os termos de uso" }: { label?: string
               <h3 className="font-semibold text-dark dark:text-[#f5edd6] mb-1">
                 {section.heading}
               </h3>
-              <p className="leading-relaxed">{section.body}</p>
+              <div className="space-y-2">
+                {section.body.map((paragraph, i) => (
+                  <p key={i} className="leading-relaxed">
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
             </div>
           ))}
         </div>
