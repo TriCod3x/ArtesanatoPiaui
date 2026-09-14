@@ -1,26 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AlertTriangle, Check, Loader2, X } from "lucide-react";
+import { AlertTriangle, Check, X } from "lucide-react";
 import { approveStore, rejectStore } from "@/actions/admin";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/shared/ConfirmDialog";
+import { DOCUMENT_STATUS_CLASS, DOCUMENT_STATUS_LABEL } from "@/lib/constants";
 import type { DocumentStatus } from "@/types";
-
-const DOC_STATUS_LABEL: Record<DocumentStatus, string> = {
-  pending: "Documento pendente",
-  approved: "Documento aprovado",
-  rejected: "Documento rejeitado",
-};
-
-const DOC_STATUS_CLASS: Record<DocumentStatus, string> = {
-  pending: "bg-amber/15 text-amber",
-  approved: "bg-capim/15 text-capim",
-  rejected: "bg-destructive/15 text-destructive",
-};
 
 export interface StoreApprovalCardProps {
   storeId: string;
@@ -42,36 +31,29 @@ export function StoreApprovalCard({
   docStatus,
 }: StoreApprovalCardProps) {
   const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [rejecting, setRejecting] = useState(false);
-  const [reason, setReason] = useState("");
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   const canApprove = docStatus === "approved";
 
-  const approve = () => {
-    startTransition(async () => {
-      const result = await approveStore(storeId);
-      if ("error" in result) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Loja aprovada.");
-      router.refresh();
-    });
+  const approve = async () => {
+    const result = await approveStore(storeId);
+    if ("error" in result) {
+      toast.error(result.error);
+      return result;
+    }
+    toast.success("Loja aprovada.");
+    router.refresh();
   };
 
-  const reject = () => {
-    startTransition(async () => {
-      const result = await rejectStore(storeId, reason);
-      if ("error" in result) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Loja rejeitada.");
-      setRejecting(false);
-      setReason("");
-      router.refresh();
-    });
+  const reject = async (reason?: string) => {
+    const result = await rejectStore(storeId, reason);
+    if ("error" in result) {
+      toast.error(result.error);
+      return result;
+    }
+    toast.success("Loja rejeitada.");
+    router.refresh();
   };
 
   return (
@@ -96,10 +78,10 @@ export function StoreApprovalCard({
 
         <span
           className={`text-xs font-semibold rounded-full px-2.5 py-1 ${
-            docStatus ? DOC_STATUS_CLASS[docStatus] : "bg-muted text-muted-foreground"
+            docStatus ? DOCUMENT_STATUS_CLASS[docStatus] : "bg-muted text-muted-foreground"
           }`}
         >
-          {docStatus ? DOC_STATUS_LABEL[docStatus] : "Documento não enviado"}
+          {docStatus ? DOCUMENT_STATUS_LABEL[docStatus] : "Documento não enviado"}
         </span>
       </div>
 
@@ -110,60 +92,49 @@ export function StoreApprovalCard({
         </div>
       )}
 
-      {rejecting ? (
-        <div className="mt-4 space-y-2">
-          <Textarea
-            rows={2}
-            placeholder="Motivo da rejeição (opcional) — será mostrado ao vendedor"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              onClick={reject}
-              disabled={pending}
-            >
-              {pending ? <Loader2 size={14} className="animate-spin" /> : "Confirmar rejeição"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setRejecting(false)}
-              disabled={pending}
-            >
-              Cancelar
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="flex gap-2 mt-4">
-          <Button
-            type="button"
-            size="sm"
-            onClick={approve}
-            disabled={pending || !canApprove}
-            title={canApprove ? undefined : "Documento de identidade ainda não foi aprovado."}
-            className="gap-1.5 bg-capim hover:bg-capim/90 text-white disabled:opacity-50"
-          >
-            {pending ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-            Aprovar loja
-          </Button>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={() => setRejecting(true)}
-            disabled={pending}
-            className="gap-1.5"
-          >
-            <X size={14} /> Rejeitar
-          </Button>
-        </div>
-      )}
+      <div className="flex gap-2 mt-4">
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => setApproveOpen(true)}
+          disabled={!canApprove}
+          title={canApprove ? undefined : "Documento de identidade ainda não foi aprovado."}
+          className="gap-1.5 bg-capim hover:bg-capim/90 text-white disabled:opacity-50"
+        >
+          <Check size={14} />
+          Aprovar loja
+        </Button>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          onClick={() => setRejectOpen(true)}
+          className="gap-1.5"
+        >
+          <X size={14} /> Rejeitar
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={approveOpen}
+        onOpenChange={setApproveOpen}
+        title={`Aprovar a loja ${storeName}?`}
+        description="A loja passa a aparecer na vitrine pública imediatamente."
+        confirmLabel="Confirmar"
+        onConfirm={approve}
+      />
+
+      <ConfirmDialog
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
+        title={`Rejeitar a loja ${storeName}?`}
+        description="A loja fica suspensa e o vendedor poderá editar e reenviar para análise."
+        confirmLabel="Confirmar rejeição"
+        destructive
+        withReason
+        reasonPlaceholder="Motivo da rejeição (opcional) — será mostrado ao vendedor"
+        onConfirm={reject}
+      />
     </div>
   );
 }

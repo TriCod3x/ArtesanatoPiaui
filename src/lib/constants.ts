@@ -36,6 +36,7 @@ export const CITIES_PI = [
 export const MAX_PRODUCT_IMAGES = 5;
 
 export const IDENTITY_DOCUMENTS_BUCKET = "identity-documents";
+export const SIGNED_URL_TTL = 60 * 5; // 5 minutos
 
 export const DOCUMENT_STATUS = {
   PENDING: "pending",
@@ -47,6 +48,30 @@ export const STORE_STATUS = {
   ACTIVE: "active",
   SUSPENDED: "suspended",
 } as const;
+
+export const STORE_STATUS_LABEL: Record<string, string> = {
+  pending: "Em análise",
+  active: "Ativa",
+  suspended: "Suspensa",
+};
+
+export const STORE_STATUS_CLASS: Record<string, string> = {
+  pending: "bg-amber/15 text-amber",
+  active: "bg-capim/15 text-capim",
+  suspended: "bg-destructive/15 text-destructive",
+};
+
+export const DOCUMENT_STATUS_LABEL: Record<string, string> = {
+  pending: "Documento em análise",
+  approved: "Documento aprovado",
+  rejected: "Documento rejeitado",
+};
+
+export const DOCUMENT_STATUS_CLASS: Record<string, string> = {
+  pending: "bg-amber/15 text-amber",
+  approved: "bg-capim/15 text-capim",
+  rejected: "bg-destructive/15 text-destructive",
+};
 
 export const ORDER_STATUS = {
   PENDING: "pending",

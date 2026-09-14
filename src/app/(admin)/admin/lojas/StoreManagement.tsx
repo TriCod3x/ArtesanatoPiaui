@@ -3,31 +3,13 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { StoreApprovalCard } from "./StoreApprovalCard";
+import {
+  DOCUMENT_STATUS_CLASS,
+  DOCUMENT_STATUS_LABEL,
+  STORE_STATUS_CLASS,
+  STORE_STATUS_LABEL,
+} from "@/lib/constants";
 import type { DocumentStatus } from "@/types";
-
-const STORE_STATUS_LABEL: Record<string, string> = {
-  pending: "Em análise",
-  active: "Ativa",
-  suspended: "Suspensa",
-};
-
-const STORE_STATUS_CLASS: Record<string, string> = {
-  pending: "bg-amber/15 text-amber",
-  active: "bg-capim/15 text-capim",
-  suspended: "bg-destructive/15 text-destructive",
-};
-
-const DOC_STATUS_LABEL: Record<DocumentStatus, string> = {
-  pending: "Documentos em análise",
-  approved: "Documentos aprovados",
-  rejected: "Documentos rejeitados",
-};
-
-const DOC_STATUS_CLASS: Record<DocumentStatus, string> = {
-  pending: "bg-amber/15 text-amber",
-  approved: "bg-capim/15 text-capim",
-  rejected: "bg-destructive/15 text-destructive",
-};
 
 export interface PendingStoreRow {
   id: string;
@@ -178,9 +160,9 @@ export function StoreManagement({ pendingStores, allStores }: StoreManagementPro
                     <td className="px-4 py-3">
                       {s.docStatus ? (
                         <span
-                          className={`text-xs font-semibold rounded-full px-2 py-0.5 ${DOC_STATUS_CLASS[s.docStatus]}`}
+                          className={`text-xs font-semibold rounded-full px-2 py-0.5 ${DOCUMENT_STATUS_CLASS[s.docStatus]}`}
                         >
-                          {DOC_STATUS_LABEL[s.docStatus]}
+                          {DOCUMENT_STATUS_LABEL[s.docStatus]}
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">Não enviados</span>
