@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
-import { ArrowRight, CheckCircle2, Store, Zap, Globe } from "lucide-react";
+import { ArrowRight, CheckCircle2, Store, Zap, Globe, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const BENEFITS = [
@@ -52,6 +52,10 @@ export default function VenderPage() {
               </Button>
             </Link>
             <p className="text-white/40 text-sm mt-4">Sem cartão de crédito. Sem mensalidade.</p>
+            <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 text-white/80 text-sm px-4 py-2 rounded-full mt-4">
+              <Wallet size={16} className="text-terracota flex-shrink-0" />
+              Você vai precisar de uma conta Mercado Pago (gratuita) para receber suas vendas.
+            </div>
           </div>
         </section>
 
