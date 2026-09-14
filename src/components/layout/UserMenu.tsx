@@ -8,12 +8,14 @@ import {
   ChevronDown,
   LayoutDashboard,
   LogOut,
+  MessageCircle,
   Package,
   Heart,
   ShieldCheck,
   User,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { getUnreadMessagesCount } from "@/actions/messages";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
 
@@ -26,10 +28,15 @@ interface UserMenuProps {
 export function UserMenu({ fullName, avatarUrl, role }: UserMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const firstName = fullName?.trim().split(" ")[0] || "Minha conta";
   const initial = fullName?.trim()?.[0]?.toUpperCase() ?? "?";
+
+  useEffect(() => {
+    getUnreadMessagesCount().then(setUnreadCount);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -63,8 +70,10 @@ export function UserMenu({ fullName, avatarUrl, role }: UserMenuProps) {
     icon: typeof User;
     onClick?: () => void;
     show: boolean;
+    badge?: number;
   }[] = [
     { href: "/perfil", label: "Meu perfil", icon: User, show: true },
+    { href: "/mensagens", label: "Mensagens", icon: MessageCircle, show: true, badge: unreadCount },
     { href: "/favoritos", label: "Favoritos", icon: Heart, show: true },
     { href: "/pedidos", label: "Meus pedidos", icon: Package, show: true },
     {
@@ -135,6 +144,11 @@ export function UserMenu({ fullName, avatarUrl, role }: UserMenuProps) {
               >
                 <item.icon size={16} className="text-terracota" />
                 {item.label}
+                {!!item.badge && (
+                  <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-terracota text-white text-[10px] font-bold flex items-center justify-center">
+                    {item.badge > 9 ? "9+" : item.badge}
+                  </span>
+                )}
               </Link>
             ))}
 

@@ -68,3 +68,19 @@ export interface PostWithRelations extends CommunityPost {
 export interface CommentWithAuthor extends PostComment {
   author?: PostAuthor | null
 }
+
+export type Conversation = Tables<"conversations">
+export type Message = Tables<"messages">
+
+export interface ConversationSummary {
+  id: string
+  iAmBuyer: boolean
+  storeId: string
+  storeSlug: string
+  otherName: string
+  otherAvatar: string | null
+  productName: string | null
+  lastMessage: string | null
+  lastMessageAt: string
+  unreadCount: number
+}
