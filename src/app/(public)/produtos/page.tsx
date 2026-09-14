@@ -6,7 +6,7 @@ import { CITIES_PI } from "@/lib/constants";
 import type { ProductWithRelations, Category } from "@/types";
 
 interface SearchParams {
-  q?: string;
+  busca?: string;
   categoria?: string;
   cidade?: string;
   preco_min?: string;
@@ -18,7 +18,7 @@ export default async function ProdutosPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const { q, categoria, cidade, preco_min, preco_max } = await searchParams;
+  const { busca, categoria, cidade, preco_min, preco_max } = await searchParams;
   const supabase = await createClient();
 
   const [productsRes, categoriesRes] = await Promise.all([
@@ -39,13 +39,20 @@ export default async function ProdutosPage({
   let products = (productsRes.data ?? []) as unknown as ProductWithRelations[];
   const categories = (categoriesRes.data ?? []) as Category[];
 
-  if (q) products = products.filter((p) => p.name.toLowerCase().includes(q.toLowerCase()));
+  if (busca) {
+    const term = busca.toLowerCase();
+    products = products.filter(
+      (p) =>
+        p.name.toLowerCase().includes(term) ||
+        (p.tags ?? []).some((tag) => tag.toLowerCase().includes(term)),
+    );
+  }
   if (categoria) products = products.filter((p) => p.category?.slug === categoria);
   if (cidade) products = products.filter((p) => (p.store as { city?: string } | undefined)?.city === cidade);
   if (preco_min) products = products.filter((p) => p.price >= parseFloat(preco_min));
   if (preco_max) products = products.filter((p) => p.price <= parseFloat(preco_max));
 
-  const hasFilters = !!(q || categoria || cidade || preco_min || preco_max);
+  const hasFilters = !!(busca || categoria || cidade || preco_min || preco_max);
 
   return (
     <>
@@ -53,13 +60,13 @@ export default async function ProdutosPage({
       <main className="flex-1 max-w-7xl mx-auto px-4 py-10">
         <h1 className="font-display text-4xl font-bold text-dark mb-2">Produtos</h1>
         <p className="text-muted-foreground mb-8">
-          {q ? `Resultados para "${q}"` : "Artesanato piauiense autêntico"}
+          {busca ? `Resultados para "${busca}"` : "Artesanato piauiense autêntico"}
         </p>
 
         <form className="flex flex-wrap gap-3 mb-10">
           <input
-            name="q"
-            defaultValue={q ?? ""}
+            name="busca"
+            defaultValue={busca ?? ""}
             placeholder="Buscar..."
             className="border border-border rounded-lg px-3 py-2 text-sm bg-white text-dark focus:outline-none focus:ring-2 focus:ring-terracota min-w-[180px]"
           />
