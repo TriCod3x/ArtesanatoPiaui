@@ -37,6 +37,7 @@ export default async function DashboardPage() {
   const docStatus = verification?.document_status as DocumentStatus | undefined;
 
   const isPending = store.status === "pending";
+  const isSuspended = store.status === "suspended";
 
   const { count: productCount } = await supabase
     .from("products")
@@ -120,8 +121,26 @@ export default async function DashboardPage() {
           <div>
             <p className="font-semibold text-dark dark:text-[#f5edd6]">Sua loja está em análise</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Nossa equipe revisará sua loja em breve. Você pode cadastrar produtos enquanto aguarda a aprovação.
+              Sua loja está em análise e ainda não aparece na vitrine pública.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Suspended store alert */}
+      {isSuspended && (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-xl p-4 flex items-start gap-3 mb-8">
+          <XCircle className="text-destructive flex-shrink-0 mt-0.5" size={20} />
+          <div className="flex-1">
+            <p className="font-semibold text-dark dark:text-[#f5edd6]">Sua loja foi rejeitada.</p>
+            {store.rejection_reason && (
+              <p className="text-sm text-muted-foreground mt-1">Motivo: {store.rejection_reason}</p>
+            )}
+            <Link href="/minha-loja" className="inline-block mt-3">
+              <Button size="sm" className="bg-terracota hover:bg-terracota/90 text-white">
+                Editar e reenviar
+              </Button>
+            </Link>
           </div>
         </div>
       )}

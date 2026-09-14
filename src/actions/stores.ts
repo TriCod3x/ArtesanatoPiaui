@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   submitSellerRequirementsSchema,
   ACCEPTED_ID_DOCUMENT_TYPES,
@@ -82,6 +83,15 @@ export async function updateStore(storeId: string, data: Partial<StoreInput>) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Você precisa estar logado." };
 
+  const { data: existing } = await supabase
+    .from("stores")
+    .select("status")
+    .eq("id", storeId)
+    .eq("owner_id", user.id)
+    .maybeSingle();
+
+  if (!existing) return { error: "Loja não encontrada." };
+
   const { whatsapp, instagram, ...storeData } = data;
 
   const { error } = await supabase
@@ -104,7 +114,25 @@ export async function updateStore(storeId: string, data: Partial<StoreInput>) {
       .upsert({ store_id: storeId, type: "instagram", value: instagram.replace(/^@/, ""), is_primary: false });
   }
 
-  return { success: true };
+  // Reenvio: editar uma loja suspensa a devolve para a fila de análise do
+  // admin. Um trigger no banco bloqueia o dono de mudar `status` diretamente
+  // (evita auto-aprovação), então essa transição específica (suspended ->
+  // pending) roda via service role, como as demais ações administrativas.
+  let resubmitted = false;
+  if (existing.status === "suspended") {
+    const admin = createAdminClient();
+    const { error: resubmitError } = await admin
+      .from("stores")
+      .update({ status: "pending", rejection_reason: null })
+      .eq("id", storeId);
+    if (!resubmitError) {
+      resubmitted = true;
+      revalidatePath("/dashboard");
+      revalidatePath("/admin/lojas");
+    }
+  }
+
+  return { success: true, resubmitted };
 }
 
 export async function uploadStoreLogo(storeId: string, file: File) {

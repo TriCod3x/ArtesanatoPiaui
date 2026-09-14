@@ -775,6 +775,7 @@ export type Database = {
           owner_id: string
           rating: number | null
           rating_count: number
+          rejection_reason: string | null
           slug: string
           state: string
           status: Database["public"]["Enums"]["store_status"]
@@ -799,6 +800,7 @@ export type Database = {
           owner_id: string
           rating?: number | null
           rating_count?: number
+          rejection_reason?: string | null
           slug: string
           state?: string
           status?: Database["public"]["Enums"]["store_status"]
@@ -823,6 +825,7 @@ export type Database = {
           owner_id?: string
           rating?: number | null
           rating_count?: number
+          rejection_reason?: string | null
           slug?: string
           state?: string
           status?: Database["public"]["Enums"]["store_status"]
