@@ -20,7 +20,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice, formatWhatsApp } from "@/lib/utils";
 import { useCart } from "@/hooks/useCart";
+import { useAuth } from "@/hooks/useAuth";
 import { LikeButton } from "@/components/community/LikeButton";
+import { SendMessageButton } from "@/components/messages/SendMessageButton";
 import type { ProductWithRelations } from "@/types";
 
 export default function ProdutoPage() {
@@ -29,6 +31,7 @@ export default function ProdutoPage() {
   const [imgIdx, setImgIdx] = useState(0);
   const [loading, setLoading] = useState(true);
   const { add } = useCart();
+  const { user } = useAuth();
 
   useEffect(() => {
     const fetch = async () => {
@@ -146,6 +149,13 @@ export default function ProdutoPage() {
                     <WhatsAppIcon size={18} /> Falar com vendedor no WhatsApp
                   </Button>
                 </a>
+              )}
+              {product.store && (!user || user.id !== product.store.owner_id) && (
+                <SendMessageButton
+                  storeId={product.store.id}
+                  productId={product.id}
+                  variant="block"
+                />
               )}
               <Button
                 onClick={handleAddToCart}

@@ -1,13 +1,24 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { ProductCard } from "@/components/product/ProductCard";
-import { formatWhatsApp } from "@/lib/utils";
-import { MapPin, Star } from "lucide-react";
+import { PostCard } from "@/components/community/PostCard";
+import { SendMessageButton } from "@/components/messages/SendMessageButton";
+import { Avatar } from "@/components/shared/Avatar";
+import { RelativeTime } from "@/components/shared/RelativeTime";
+import { Badge } from "@/components/ui/badge";
+import { formatWhatsApp, cn } from "@/lib/utils";
+import { Calendar, MapPin, Star } from "lucide-react";
 import { LikeButton } from "@/components/community/LikeButton";
-import type { StoreWithContacts, ProductWithRelations } from "@/types";
+import type {
+  StoreWithContacts,
+  ProductWithRelations,
+  PostWithRelations,
+  PostAuthor,
+} from "@/types";
 
 const WhatsAppIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
@@ -21,13 +32,75 @@ const InstagramIcon = () => (
   </svg>
 );
 
+const TABS = [
+  { key: "produtos", label: "Produtos" },
+  { key: "avaliacoes", label: "Avaliações" },
+  { key: "sobre", label: "Sobre" },
+  { key: "posts", label: "Posts" },
+] as const;
+type TabKey = (typeof TABS)[number]["key"];
+
+interface ReviewRow {
+  id: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
+  buyer: { full_name: string; avatar_url: string | null } | { full_name: string; avatar_url: string | null }[] | null;
+  product: { name: string; slug: string } | { name: string; slug: string }[] | null;
+}
+
+interface CategoryRef {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+interface RawPost {
+  id: string;
+  author_id: string;
+  content: string;
+  image_url: string | null;
+  product_id: string | null;
+  created_at: string;
+  author: PostAuthor | null;
+  product: PostWithRelations["product"];
+  likes: { user_id: string }[] | null;
+  comments: { id: string }[] | null;
+}
+
+function monthYear(iso: string): string {
+  return new Date(iso).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+}
+
+function StarRow({ rating, size = 14 }: { rating: number; size?: number }) {
+  return (
+    <div className="flex gap-0.5" aria-label={`${rating} de 5 estrelas`}>
+      {[1, 2, 3, 4, 5].map((i) => (
+        <Star
+          key={i}
+          size={size}
+          className={i <= Math.round(rating) ? "text-amber fill-amber" : "text-border dark:text-[#3d2c1a]"}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default async function LojaPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { slug } = await params;
+  const { tab } = await searchParams;
+  const activeTab: TabKey = (TABS.some((t) => t.key === tab) ? tab : "produtos") as TabKey;
+
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   const { data: storeData } = await supabase
     .from("stores")
@@ -41,6 +114,7 @@ export default async function LojaPage({
   const store = storeData as unknown as StoreWithContacts;
   const whatsapp = store.contacts?.find((c) => c.type === "whatsapp")?.value;
   const instagram = store.contacts?.find((c) => c.type === "instagram")?.value;
+  const isOwnStore = !!user && user.id === store.owner_id;
 
   const { data: owner } = await supabase
     .from("profiles")
@@ -48,21 +122,90 @@ export default async function LojaPage({
     .eq("id", store.owner_id)
     .maybeSingle();
 
-  const { data: productsData } = await supabase
-    .from("products")
-    .select(`
-      *,
-      category:categories(id, name, slug),
-      images:product_images(id, url, position, is_cover)
-    `)
-    .eq("store_id", store.id)
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
+  // Dados carregados sob demanda, só pra aba ativa.
+  let products: ProductWithRelations[] = [];
+  let reviews: ReviewRow[] = [];
+  let categories: CategoryRef[] = [];
+  let posts: PostWithRelations[] = [];
 
-  const products = (productsData ?? []).map((p) => ({
-    ...p,
-    store,
-  })) as unknown as ProductWithRelations[];
+  if (activeTab === "produtos") {
+    const { data } = await supabase
+      .from("products")
+      .select(`*, category:categories(id, name, slug), images:product_images(id, url, position, is_cover)`)
+      .eq("store_id", store.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: false });
+    products = (data ?? []).map((p) => ({ ...p, store })) as unknown as ProductWithRelations[];
+  }
+
+  if (activeTab === "avaliacoes") {
+    const { data } = await supabase
+      .from("reviews")
+      .select(
+        `
+        id, rating, comment, created_at,
+        buyer:profiles!reviews_buyer_id_fkey(full_name, avatar_url),
+        product:products(name, slug)
+        `,
+      )
+      .eq("store_id", store.id)
+      .order("created_at", { ascending: false });
+    reviews = (data ?? []) as unknown as ReviewRow[];
+  }
+
+  if (activeTab === "sobre") {
+    const { data } = await supabase
+      .from("products")
+      .select("category:categories(id, name, slug)")
+      .eq("store_id", store.id)
+      .eq("status", "active")
+      .not("category_id", "is", null);
+
+    const seen = new Map<string, CategoryRef>();
+    for (const row of data ?? []) {
+      const cat = (Array.isArray(row.category) ? row.category[0] : row.category) as CategoryRef | null;
+      if (cat) seen.set(cat.id, cat);
+    }
+    categories = [...seen.values()];
+  }
+
+  if (activeTab === "posts") {
+    const { data } = await supabase
+      .from("community_posts")
+      .select(
+        `
+        *,
+        author:profiles(id, full_name, avatar_url),
+        product:products(id, name, slug, price, images:product_images(url, is_cover, position)),
+        likes:post_likes(user_id),
+        comments:post_comments(id)
+        `,
+      )
+      .eq("author_id", store.owner_id)
+      .order("created_at", { ascending: false });
+
+    posts = ((data ?? []) as unknown as RawPost[]).map((post) => ({
+      id: post.id,
+      author_id: post.author_id,
+      content: post.content,
+      image_url: post.image_url,
+      product_id: post.product_id,
+      created_at: post.created_at,
+      author: post.author,
+      product: post.product ?? null,
+      likes_count: post.likes?.length ?? 0,
+      comments_count: post.comments?.length ?? 0,
+      liked_by_me: !!user && !!post.likes?.some((like) => like.user_id === user.id),
+    }));
+  }
+
+  const reviewsAverage = reviews.length
+    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    : 0;
+  const reviewsDistribution = [5, 4, 3, 2, 1].map((star) => {
+    const count = reviews.filter((r) => r.rating === star).length;
+    return { star, count, pct: reviews.length ? Math.round((count / reviews.length) * 100) : 0 };
+  });
 
   return (
     <>
@@ -95,15 +238,7 @@ export default async function LojaPage({
               <h1 className="font-display text-3xl font-bold text-dark dark:text-[#f5edd6]">{store.name}</h1>
               {owner?.full_name && (
                 <div className="flex items-center gap-2 mt-1.5 text-sm text-muted-foreground">
-                  <span className="w-6 h-6 rounded-full overflow-hidden bg-cream dark:bg-[#3d2c1a] flex items-center justify-center flex-shrink-0 relative">
-                    {owner.avatar_url ? (
-                      <Image src={owner.avatar_url} alt={owner.full_name} fill className="object-cover" sizes="24px" />
-                    ) : (
-                      <span className="text-[11px] font-bold text-terracota">
-                        {owner.full_name[0]?.toUpperCase()}
-                      </span>
-                    )}
-                  </span>
+                  <Avatar name={owner.full_name} url={owner.avatar_url} size={24} />
                   <span>por {owner.full_name}</span>
                 </div>
               )}
@@ -119,6 +254,7 @@ export default async function LojaPage({
             </div>
             <div className="flex gap-2 flex-wrap items-center">
               <LikeButton targetId={store.id} target="store" variant="pill" label="Favoritar" />
+              {!isOwnStore && <SendMessageButton storeId={store.id} />}
               {whatsapp && (
                 <a href={formatWhatsApp(whatsapp)} target="_blank" rel="noopener noreferrer">
                   <button
@@ -142,23 +278,164 @@ export default async function LojaPage({
             </div>
           </div>
 
-          {/* Description */}
-          {store.description && (
-            <div className="mb-10">
-              <h2 className="font-semibold text-dark dark:text-[#f5edd6] mb-2">Sobre a loja</h2>
-              <p className="text-muted-foreground leading-relaxed max-w-2xl">{store.description}</p>
+          {/* Tabs */}
+          <div className="flex items-center gap-1 border-b border-border dark:border-[#3d2c1a] mb-8 overflow-x-auto">
+            {TABS.map((t) => (
+              <Link
+                key={t.key}
+                href={`/lojas/${slug}?tab=${t.key}`}
+                className={cn(
+                  "px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px whitespace-nowrap transition-colors",
+                  activeTab === t.key
+                    ? "border-terracota text-terracota"
+                    : "border-transparent text-muted-foreground hover:text-dark dark:hover:text-[#f5edd6]",
+                )}
+              >
+                {t.label}
+              </Link>
+            ))}
+          </div>
+
+          {/* Produtos */}
+          {activeTab === "produtos" && (
+            <div className="pb-12">
+              <p className="text-sm text-muted-foreground mb-6">
+                {products.length} produto{products.length !== 1 ? "s" : ""}
+              </p>
+              {products.length === 0 ? (
+                <p className="text-muted-foreground py-16 text-center">Esta loja ainda não tem produtos.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                  {products.map((product) => <ProductCard key={product.id} product={product} />)}
+                </div>
+              )}
             </div>
           )}
 
-          {/* Products */}
-          <h2 className="font-display text-2xl font-bold text-dark dark:text-[#f5edd6] mb-6">
-            Produtos ({products.length})
-          </h2>
-          {products.length === 0 ? (
-            <p className="text-muted-foreground py-10 text-center">Esta loja ainda não tem produtos.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5 mb-12">
-              {products.map((product) => <ProductCard key={product.id} product={product} />)}
+          {/* Avaliações */}
+          {activeTab === "avaliacoes" && (
+            <div className="pb-12">
+              {reviews.length === 0 ? (
+                <p className="text-muted-foreground py-16 text-center">
+                  Esta loja ainda não recebeu avaliações.
+                </p>
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-8 mb-8 p-6 bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] rounded-2xl">
+                    <div className="flex flex-col items-center justify-center sm:pr-8 sm:border-r border-border dark:border-[#3d2c1a] flex-shrink-0">
+                      <p className="text-5xl font-black text-terracota">{reviewsAverage.toFixed(1)}</p>
+                      <div className="my-1.5"><StarRow rating={reviewsAverage} size={16} /></div>
+                      <p className="text-sm text-muted-foreground whitespace-nowrap">
+                        {reviews.length} avaliaç{reviews.length === 1 ? "ão" : "ões"}
+                      </p>
+                    </div>
+                    <div className="flex-1 flex flex-col gap-2 justify-center">
+                      {reviewsDistribution.map((d) => (
+                        <div key={d.star} className="flex items-center gap-2 text-sm">
+                          <span className="w-8 text-muted-foreground flex-shrink-0">{d.star}★</span>
+                          <div className="flex-1 h-2 rounded-full bg-cream dark:bg-[#3d2c1a] overflow-hidden">
+                            <div className="h-full bg-amber" style={{ width: `${d.pct}%` }} />
+                          </div>
+                          <span className="w-10 text-right text-muted-foreground flex-shrink-0">{d.pct}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    {reviews.map((r) => {
+                      const buyer = Array.isArray(r.buyer) ? r.buyer[0] : r.buyer;
+                      const product = Array.isArray(r.product) ? r.product[0] : r.product;
+                      return (
+                        <div key={r.id} className="p-5 bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] rounded-xl">
+                          <div className="flex items-center gap-3 mb-2">
+                            <Avatar name={buyer?.full_name ?? "Comprador"} url={buyer?.avatar_url} size={36} />
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-sm text-dark dark:text-[#f5edd6] truncate">
+                                {buyer?.full_name ?? "Comprador"}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <StarRow rating={r.rating} size={12} />
+                                <RelativeTime date={r.created_at} className="text-xs text-muted-foreground" />
+                              </div>
+                            </div>
+                          </div>
+                          {r.comment && (
+                            <p className="text-sm text-dark dark:text-[#f5edd6] leading-relaxed mb-2">{r.comment}</p>
+                          )}
+                          {product && (
+                            <Link href={`/produtos/${product.slug}`} className="text-xs text-terracota hover:underline">
+                              Sobre: {product.name}
+                            </Link>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Sobre */}
+          {activeTab === "sobre" && (
+            <div className="max-w-2xl space-y-8 pb-12">
+              {store.description && (
+                <div>
+                  <h2 className="font-semibold text-dark dark:text-[#f5edd6] mb-2">Descrição</h2>
+                  <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{store.description}</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="p-4 bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] rounded-xl">
+                  <p className="text-2xl font-bold text-dark dark:text-[#f5edd6]">{store.total_sales}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Vendas realizadas</p>
+                </div>
+                <div className="p-4 bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] rounded-xl">
+                  <p className="text-2xl font-bold text-dark dark:text-[#f5edd6]">
+                    {store.rating && store.rating > 0 ? store.rating.toFixed(1) : "–"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Avaliação média</p>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+                <span className="flex items-center gap-2"><MapPin size={15} /> {store.city}, {store.state}</span>
+                <span className="flex items-center gap-2">
+                  <Calendar size={15} /> Na Artesanatos Piauí desde {monthYear(store.created_at)}
+                </span>
+              </div>
+
+              {categories.length > 0 && (
+                <div>
+                  <h2 className="font-semibold text-dark dark:text-[#f5edd6] mb-3">Categorias</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {categories.map((c) => (
+                      <Badge key={c.id} variant="outline" className="border-terracota/30 text-terracota">
+                        {c.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Posts */}
+          {activeTab === "posts" && (
+            <div className="pb-12">
+              {posts.length === 0 ? (
+                <p className="text-muted-foreground py-16 text-center">
+                  Esta loja ainda não publicou na comunidade.
+                </p>
+              ) : (
+                <div className="flex flex-col gap-5 max-w-2xl">
+                  {posts.map((post) => (
+                    <PostCard key={post.id} post={post} currentUserId={user?.id ?? null} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
