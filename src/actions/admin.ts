@@ -3,10 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { IDENTITY_DOCUMENTS_BUCKET } from "@/lib/constants";
+import { IDENTITY_DOCUMENTS_BUCKET, SIGNED_URL_TTL } from "@/lib/constants";
 import type { User } from "@supabase/supabase-js";
-
-const SIGNED_URL_TTL = 60 * 5; // 5 minutos
 
 async function requireAdmin(): Promise<
   { user: User } | { error: string }

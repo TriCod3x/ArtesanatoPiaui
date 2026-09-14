@@ -1,11 +1,20 @@
 import { FileCheck2 } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatCEP, formatCNPJ, formatCPF } from "@/lib/utils";
+import { IDENTITY_DOCUMENTS_BUCKET, SIGNED_URL_TTL } from "@/lib/constants";
 import { DocumentReviewCard } from "./DocumentReviewCard";
 import { StoreManagement, type PendingStoreRow, type StoreRow } from "./StoreManagement";
 import type { DocumentStatus } from "@/types";
 
 export const metadata = { title: "Administração — Lojas" };
+
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png"]);
+
+function isImagePath(path: string | null | undefined): boolean {
+  if (!path) return false;
+  const ext = path.split(".").pop()?.toLowerCase();
+  return !!ext && IMAGE_EXTENSIONS.has(ext);
+}
 
 export default async function AdminLojasPage() {
   const admin = createAdminClient();
@@ -20,10 +29,11 @@ export default async function AdminLojasPage() {
         .from("stores")
         .select("id, name, slug, status, owner_id, city, created_at")
         .order("created_at", { ascending: false }),
-      admin.from("profiles").select("id, full_name"),
+      admin.from("profiles").select("id, full_name, phone"),
     ]);
 
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
+  const phoneById = new Map((profiles ?? []).map((p) => [p.id, p.phone]));
   const storeByOwner = new Map((stores ?? []).map((s) => [s.owner_id, s]));
   const verificationByUser = new Map(
     (verifications ?? []).map((v) => [v.user_id, v]),
@@ -31,6 +41,30 @@ export default async function AdminLojasPage() {
 
   const pending = (verifications ?? []).filter(
     (v) => v.document_status === "pending",
+  );
+
+  // Email (auth.users) só é buscado pra quem não tem telefone no perfil.
+  const emailById = new Map<string, string | null>();
+  await Promise.all(
+    pending
+      .filter((v) => !phoneById.get(v.user_id))
+      .map(async (v) => {
+        const { data } = await admin.auth.admin.getUserById(v.user_id);
+        emailById.set(v.user_id, data.user?.email ?? null);
+      }),
+  );
+
+  // Preview inline: signed URL só pra documentos que são imagem (jpg/png).
+  const previewUrlById = new Map<string, string>();
+  await Promise.all(
+    pending
+      .filter((v) => isImagePath(v.id_document_path))
+      .map(async (v) => {
+        const { data } = await admin.storage
+          .from(IDENTITY_DOCUMENTS_BUCKET)
+          .createSignedUrl(v.id_document_path!, SIGNED_URL_TTL);
+        if (data?.signedUrl) previewUrlById.set(v.user_id, data.signedUrl);
+      }),
   );
 
   const fullAddress = (v: NonNullable<typeof verifications>[number]) =>
@@ -90,18 +124,25 @@ export default async function AdminLojasPage() {
           </p>
         ) : (
           <div className="space-y-4">
-            {pending.map((v) => (
-              <DocumentReviewCard
-                key={v.user_id}
-                userId={v.user_id}
-                fullName={nameById.get(v.user_id) ?? "Vendedor"}
-                cpf={formatCPF(v.cpf)}
-                cnpj={v.cnpj ? formatCNPJ(v.cnpj) : null}
-                address={fullAddress(v)}
-                submittedAt={v.submitted_at}
-                storeName={storeByOwner.get(v.user_id)?.name ?? null}
-              />
-            ))}
+            {pending.map((v) => {
+              const store = storeByOwner.get(v.user_id);
+              return (
+                <DocumentReviewCard
+                  key={v.user_id}
+                  userId={v.user_id}
+                  fullName={nameById.get(v.user_id) ?? "Vendedor"}
+                  phone={phoneById.get(v.user_id) ?? null}
+                  email={emailById.get(v.user_id) ?? null}
+                  cpf={formatCPF(v.cpf)}
+                  cnpj={v.cnpj ? formatCNPJ(v.cnpj) : null}
+                  address={fullAddress(v)}
+                  submittedAt={v.submitted_at}
+                  store={store ? { name: store.name, slug: store.slug, status: store.status } : null}
+                  documentIsImage={isImagePath(v.id_document_path)}
+                  documentPreviewUrl={previewUrlById.get(v.user_id) ?? null}
+                />
+              );
+            })}
           </div>
         )}
       </section>
