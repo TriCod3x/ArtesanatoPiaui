@@ -186,12 +186,29 @@ export async function calculateShipping(params: {
     }),
   });
 
+  const rawText = await res.text();
   if (!res.ok) {
-    throw new Error(`Falha ao calcular frete (${res.status}): ${await res.text()}`);
+    throw new Error(`Falha ao calcular frete (${res.status}): ${rawText}`);
   }
-  const options: MEServiceOption[] = await res.json();
-  // Serviços indisponíveis pra essa rota/produto voltam com `error` em vez de preço.
-  return options.filter((o) => !o.error && (o.custom_price || o.price));
+
+  const options: MEServiceOption[] = JSON.parse(rawText);
+  const withoutError = options.filter((o) => !o.error && (o.custom_price || o.price));
+
+  // TODO(debug temporário — remover depois de confirmar se é limitação do
+  // sandbox): a Melhor Envio responde 200 mesmo quando NENHUMA transportadora
+  // atende a rota — cada opção some com `error` em vez de preço, então "sem
+  // frete disponível" pode ser a transportadora contratada recusando o
+  // trecho (comum em contas de sandbox, ex.: coleta intramunicipal) e não um
+  // erro real na nossa chamada. Isso ajuda a distinguir os dois casos sem
+  // precisar reproduzir a chamada manualmente de novo.
+  if (withoutError.length === 0) {
+    console.log(
+      `[melhorenvio][debug] calculate ${params.originCep}->${params.destinationCep} voltou 200 mas sem opções válidas. Resposta crua:`,
+      rawText,
+    );
+  }
+
+  return withoutError;
 }
 
 // ── Carrinho / compra / geração / rastreio ──────────────────────────────────
