@@ -16,6 +16,25 @@ function env(name: string): string {
   return value;
 }
 
+/**
+ * client_id é um número simples (ex.: "12011") — nunca contém "=" nem o
+ * nome de outra variável. Isso pega o erro clássico de configuração: colar
+ * a linha inteira "MELHORENVIO_CLIENT_SECRET=xxxx" (nome da var + valor) no
+ * campo de VALOR de MELHORENVIO_CLIENT_ID no painel de deploy (Vercel), em
+ * vez de só o número. Falha alto e claro em vez de montar uma URL OAuth
+ * quebrada que a Melhor Envio rejeita com invalid_client sem dizer por quê.
+ */
+function clientId(): string {
+  const value = env("MELHORENVIO_CLIENT_ID").trim();
+  if (value.includes("=") || /\s/.test(value) || value.includes("MELHORENVIO_")) {
+    throw new Error(
+      `MELHORENVIO_CLIENT_ID parece conter o nome de outra variável em vez do próprio valor (começa com "${value.slice(0, 12)}..."). ` +
+        `Confira o valor configurado no ambiente de deploy — deve ser só o número do client_id (ex.: 12011), sem "MELHORENVIO_CLIENT_SECRET=" ou qualquer prefixo.`,
+    );
+  }
+  return value;
+}
+
 function apiUrl(): string {
   return env("MELHORENVIO_API_URL").replace(/\/$/, "");
 }
@@ -72,8 +91,13 @@ export function verifyOAuthState(state: string): string | null {
 }
 
 export function buildAuthorizationUrl(storeId: string): string {
+  const id = clientId();
+  // TODO(debug temporário — remover depois de confirmar em produção que o
+  // client_id aparece certo): só os 4 primeiros chars, nunca o secret.
+  console.log(`[melhorenvio][debug] client_id usado na URL de autorização: "${id.slice(0, 4)}..." (tamanho ${id.length})`);
+
   const url = new URL("/oauth/authorize", apiUrl());
-  url.searchParams.set("client_id", env("MELHORENVIO_CLIENT_ID"));
+  url.searchParams.set("client_id", id);
   url.searchParams.set("redirect_uri", callbackUrl());
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", signOAuthState(storeId));
@@ -94,7 +118,7 @@ export async function exchangeOAuthCode(code: string): Promise<MEOAuthToken> {
     headers: { Accept: "application/json", "Content-Type": "application/json", "User-Agent": USER_AGENT },
     body: JSON.stringify({
       grant_type: "authorization_code",
-      client_id: env("MELHORENVIO_CLIENT_ID"),
+      client_id: clientId(),
       client_secret: env("MELHORENVIO_CLIENT_SECRET"),
       redirect_uri: callbackUrl(),
       code,
