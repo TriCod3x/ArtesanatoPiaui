@@ -272,14 +272,25 @@ export async function getTracking(accessToken: string, cartItemId: string): Prom
   return data[cartItemId] ?? null;
 }
 
-// ── Webhook signature (X-ME-Signature, HMAC-SHA256 do corpo bruto) ─────────
-
+// ── Webhook signature (X-ME-Signature, HMAC-SHA256 do corpo bruto, base64) ──
+// A doc oficial mostra o header como base64 (ex.: "eW/6UEmwJ7vH13kMsrhjMVzek3Yg
+// 0Oa5TDsUSeLVFoM=") — sem prefixo tipo "sha256=". Bug anterior: o código
+// gerava o HMAC em hex, que nunca bate com um valor base64 (causa raiz do 401
+// "assinatura inválida" mesmo com o secret certo — confirmado contra o
+// exemplo literal da doc, não só a descrição do algoritmo).
 export function verifyWebhookSignature(rawBody: string, signature: string | null): boolean {
   if (!signature) return false;
 
   const expected = createHmac("sha256", env("MELHORENVIO_WEBHOOK_SECRET"))
     .update(rawBody)
-    .digest("hex");
+    .digest("base64");
+
+  // TODO(debug temporário — remover depois de confirmar no painel da Melhor
+  // Envio que o cadastro do webhook passa): compara os dois valores nos logs
+  // de produção sem nunca logar o secret em si.
+  console.log("[melhorenvio][debug] x-me-signature recebido:", signature);
+  console.log("[melhorenvio][debug] hmac calculado (base64):", expected);
+  console.log("[melhorenvio][debug] rawBody length:", rawBody.length, "rawBody (primeiros 200 chars):", rawBody.slice(0, 200));
 
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
