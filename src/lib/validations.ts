@@ -41,7 +41,14 @@ export const productSchema = z.object({
     .or(z.literal("")),
   tags: z.array(z.string()).optional(),
   status: z.enum(["active", "inactive", "out_of_stock"]),
-  weight_grams: z.number().int().positive().optional().nullable(),
+  // Obrigatórios pra calcular frete (Melhor Envio) depois — sem isso o
+  // produto não pode ser vendido, já que o checkout precisa cotar o envio.
+  // `error` cobre tanto o campo vazio (valueAsNumber vira NaN, falha no
+  // type-check de z.number()) quanto zero/negativo (falha no .positive()).
+  weight_grams: z.number({ error: "Informe o peso" }).int().positive("Informe o peso"),
+  height_cm: z.number({ error: "Informe a altura" }).positive("Informe a altura"),
+  width_cm: z.number({ error: "Informe a largura" }).positive("Informe a largura"),
+  length_cm: z.number({ error: "Informe o comprimento" }).positive("Informe o comprimento"),
 });
 
 export const postSchema = z.object({
@@ -143,6 +150,29 @@ export type SellerTermsInput = z.infer<typeof sellerTermsSchema>;
 export type SubmitSellerRequirementsInput = z.infer<
   typeof submitSellerRequirementsSchema
 >;
+
+// ── Checkout — endereço de entrega ──────────────────────────────────────────
+
+export const shippingAddressSchema = z.object({
+  recipient_name: z.string().trim().min(3, "Informe o nome do destinatário"),
+  recipient_phone: z.string().trim().min(10, "Telefone inválido"),
+  cep: z
+    .string()
+    .trim()
+    .refine((v) => onlyDigits(v).length === 8, "CEP deve ter 8 dígitos"),
+  address_street: z.string().trim().min(3, "Informe a rua"),
+  address_number: z.string().trim().min(1, "Informe o número"),
+  address_complement: z.string().trim().optional(),
+  address_neighborhood: z.string().trim().min(2, "Informe o bairro"),
+  address_city: z.string().trim().min(2, "Informe a cidade"),
+  address_state: z
+    .string()
+    .trim()
+    .length(2, "UF deve ter 2 letras")
+    .transform((v) => v.toUpperCase()),
+});
+
+export type ShippingAddressInput = z.infer<typeof shippingAddressSchema>;
 
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;

@@ -42,7 +42,10 @@ export async function createProduct(data: ProductInput) {
       category_id: data.category_id || null,
       tags: data.tags ?? [],
       status: data.status,
-      weight_grams: data.weight_grams ?? null,
+      weight_grams: data.weight_grams,
+      height_cm: data.height_cm,
+      width_cm: data.width_cm,
+      length_cm: data.length_cm,
     })
     .select("id")
     .single();

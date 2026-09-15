@@ -96,3 +96,21 @@ export const PAYMENT_STATUS_CLASS: Record<string, string> = {
   refunded: "bg-muted text-muted-foreground",
   cancelled: "bg-destructive/15 text-destructive",
 };
+
+export const SHIPMENT_STATUS_LABEL: Record<string, string> = {
+  pending: "Aguardando compra da etiqueta",
+  purchased: "Etiqueta gerada",
+  posted: "Postado",
+  in_transit: "Em trânsito",
+  delivered: "Entregue",
+  cancelled: "Cancelado",
+};
+
+export const SHIPMENT_STATUS_CLASS: Record<string, string> = {
+  pending: "bg-amber/15 text-amber",
+  purchased: "bg-blue-500/15 text-blue-500",
+  posted: "bg-blue-500/15 text-blue-500",
+  in_transit: "bg-blue-500/15 text-blue-500",
+  delivered: "bg-capim/15 text-capim",
+  cancelled: "bg-destructive/15 text-destructive",
+};

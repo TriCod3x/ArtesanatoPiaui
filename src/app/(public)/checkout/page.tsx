@@ -4,27 +4,47 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Loader2, Store, ShoppingBag } from "lucide-react";
+import { Loader2, Store, ShoppingBag, Truck } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { useCart } from "@/hooks/useCart";
-import { formatPrice, formatCPF, isValidCPF } from "@/lib/utils";
+import { formatPrice, formatCPF, isValidCPF, formatCEP, onlyDigits } from "@/lib/utils";
 import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
-import { createOrder } from "@/actions/orders";
+import { shippingAddressSchema, type ShippingAddressInput } from "@/lib/validations";
+import { fetchAddressByCep } from "@/lib/viacep";
+import { createOrder, type SelectedShippingInput } from "@/actions/orders";
+import { calculateShippingForCart, type StoreShippingQuote } from "@/actions/shipping";
 import { createPayment, getOrderPaymentStatus } from "@/actions/payments";
 import { PixPayment } from "@/components/checkout/PixPayment";
 import { CardCheckoutButton } from "@/components/checkout/CardCheckoutButton";
-import type { PaymentMethod, PaymentStatus, StorePaymentResult } from "@/types";
+import type { PaymentMethod, PaymentStatus, ShippingOption, StorePaymentResult } from "@/types";
+
+const EMPTY_ADDRESS: ShippingAddressInput = {
+  recipient_name: "",
+  recipient_phone: "",
+  cep: "",
+  address_street: "",
+  address_number: "",
+  address_complement: "",
+  address_neighborhood: "",
+  address_city: "",
+  address_state: "",
+};
 
 function CheckoutContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { items, total, clear } = useCart();
 
+  const [address, setAddress] = useState<ShippingAddressInput>(EMPTY_ADDRESS);
+  const [cepLoading, setCepLoading] = useState(false);
+  const [quotes, setQuotes] = useState<StoreShippingQuote[] | null>(null);
+  const [selectedShipping, setSelectedShipping] = useState<Record<string, ShippingOption>>({});
+
   const [method, setMethod] = useState<PaymentMethod>("pix");
   const [cpf, setCpf] = useState("");
-  const [cpfError, setCpfError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(() => searchParams.get("order"));
   const [payments, setPayments] = useState<StorePaymentResult[] | null>(null);
@@ -51,19 +71,72 @@ function CheckoutContent() {
     ),
   );
 
-  const runCheckout = async (selectedMethod: PaymentMethod) => {
-    if (selectedMethod === "pix" && !isValidCPF(cpf)) {
-      setCpfError("Informe um CPF válido para pagar com Pix.");
+  const handleCepBlur = async (value: string) => {
+    if (onlyDigits(value).length !== 8) return;
+
+    setCepLoading(true);
+    const found = await fetchAddressByCep(value);
+    if (found) {
+      setAddress((a) => ({
+        ...a,
+        address_street: found.street || a.address_street,
+        address_neighborhood: found.neighborhood || a.address_neighborhood,
+        address_city: found.city || a.address_city,
+        address_state: found.state || a.address_state,
+      }));
+    } else {
+      toast.error("CEP não encontrado. Preencha o endereço manualmente.");
+    }
+
+    const shippingResult = await calculateShippingForCart(
+      value,
+      items.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
+    );
+    setCepLoading(false);
+
+    if ("error" in shippingResult) {
+      toast.error(shippingResult.error);
       return;
     }
-    setCpfError(null);
+    setQuotes(shippingResult.quotes);
+    setSelectedShipping({});
+  };
+
+  const shippingTotal = Object.values(selectedShipping).reduce((sum, o) => sum + o.price, 0);
+  const grandTotal = total + shippingTotal;
+
+  const runCheckout = async (selectedMethod: PaymentMethod) => {
+    const addressParsed = shippingAddressSchema.safeParse(address);
+    if (!addressParsed.success) {
+      setFormError(addressParsed.error.issues[0]?.message ?? "Preencha o endereço de entrega.");
+      return;
+    }
+    if (!quotes || groups.some((g) => !selectedShipping[g.storeId])) {
+      setFormError("Selecione uma opção de frete para todas as lojas do carrinho.");
+      return;
+    }
+    if (selectedMethod === "pix" && !isValidCPF(cpf)) {
+      setFormError("Informe um CPF válido para pagar com Pix.");
+      return;
+    }
+    setFormError(null);
     setSubmitting(true);
     setMethod(selectedMethod);
 
     let currentOrderId = orderId;
     if (!currentOrderId) {
+      const selected: SelectedShippingInput[] = Object.values(selectedShipping).map((o) => ({
+        storeId: o.storeId,
+        serviceId: o.serviceId,
+        serviceName: o.serviceName,
+        price: o.price,
+        deliveryTimeDays: o.deliveryTimeDays,
+      }));
+
       const orderResult = await createOrder(
         items.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
+        address,
+        selected,
       );
       if ("error" in orderResult) {
         toast.error(orderResult.error);
@@ -240,6 +313,141 @@ function CheckoutContent() {
                 ))}
               </div>
 
+              {/* Endereço de entrega */}
+              <div
+                className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] shadow-sm p-5 mb-6"
+                style={{ borderRadius: "16px" }}
+              >
+                <p className="font-semibold text-dark dark:text-[#f5edd6] mb-3">Endereço de entrega</p>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="text-xs text-muted-foreground">Nome do destinatário</label>
+                    <input
+                      value={address.recipient_name}
+                      onChange={(e) => setAddress((a) => ({ ...a, recipient_name: e.target.value }))}
+                      className="mt-1 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
+                    />
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <label className="text-xs text-muted-foreground">Telefone</label>
+                    <input
+                      value={address.recipient_phone}
+                      onChange={(e) => setAddress((a) => ({ ...a, recipient_phone: e.target.value }))}
+                      placeholder="(00) 00000-0000"
+                      className="mt-1 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">CEP</label>
+                    <div className="relative">
+                      <input
+                        value={address.cep}
+                        onChange={(e) => setAddress((a) => ({ ...a, cep: formatCEP(e.target.value) }))}
+                        onBlur={(e) => handleCepBlur(e.target.value)}
+                        placeholder="00000-000"
+                        className="mt-1 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
+                      />
+                      {cepLoading && (
+                        <Loader2 size={14} className="animate-spin absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Número</label>
+                    <input
+                      value={address.address_number}
+                      onChange={(e) => setAddress((a) => ({ ...a, address_number: e.target.value }))}
+                      className="mt-1 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs text-muted-foreground">Rua</label>
+                    <input
+                      value={address.address_street}
+                      onChange={(e) => setAddress((a) => ({ ...a, address_street: e.target.value }))}
+                      className="mt-1 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Complemento</label>
+                    <input
+                      value={address.address_complement}
+                      onChange={(e) => setAddress((a) => ({ ...a, address_complement: e.target.value }))}
+                      className="mt-1 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Bairro</label>
+                    <input
+                      value={address.address_neighborhood}
+                      onChange={(e) => setAddress((a) => ({ ...a, address_neighborhood: e.target.value }))}
+                      className="mt-1 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Cidade</label>
+                    <input
+                      value={address.address_city}
+                      onChange={(e) => setAddress((a) => ({ ...a, address_city: e.target.value }))}
+                      className="mt-1 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">UF</label>
+                    <input
+                      value={address.address_state}
+                      maxLength={2}
+                      onChange={(e) => setAddress((a) => ({ ...a, address_state: e.target.value.toUpperCase() }))}
+                      className="mt-1 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm uppercase outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
+                    />
+                  </div>
+                </div>
+
+                {quotes && (
+                  <div className="flex flex-col gap-4 mt-4 pt-4 border-t border-border dark:border-[#3d2c1a]">
+                    {quotes.map((q) => (
+                      <div key={q.storeId}>
+                        <div className="flex items-center gap-1.5 text-sm font-semibold text-dark dark:text-[#f5edd6] mb-2">
+                          <Truck size={14} className="text-terracota" /> Frete — {q.storeName}
+                        </div>
+                        {q.error ? (
+                          <p className="text-xs text-destructive">{q.error}</p>
+                        ) : q.options.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">Nenhuma opção de frete disponível pra esse CEP.</p>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {q.options.map((opt) => (
+                              <label
+                                key={opt.serviceId}
+                                className={`flex items-center justify-between gap-3 border rounded-lg px-3 py-2 text-sm cursor-pointer transition-colors ${
+                                  selectedShipping[q.storeId]?.serviceId === opt.serviceId
+                                    ? "border-terracota bg-terracota/10"
+                                    : "border-border dark:border-[#3d2c1a] hover:border-terracota/40"
+                                }`}
+                              >
+                                <span className="flex items-center gap-2">
+                                  <input
+                                    type="radio"
+                                    name={`shipping-${q.storeId}`}
+                                    checked={selectedShipping[q.storeId]?.serviceId === opt.serviceId}
+                                    onChange={() => setSelectedShipping((s) => ({ ...s, [q.storeId]: opt }))}
+                                    className="accent-terracota"
+                                  />
+                                  <span className="text-dark dark:text-[#f5edd6]">
+                                    {opt.serviceName} {opt.companyName ? `(${opt.companyName})` : ""} · {opt.deliveryTimeDays} dia(s)
+                                  </span>
+                                </span>
+                                <span className="font-semibold text-terracota whitespace-nowrap">{formatPrice(opt.price)}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div
                 className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] shadow-sm p-5"
                 style={{ borderRadius: "16px" }}
@@ -271,25 +479,29 @@ function CheckoutContent() {
                       inputMode="numeric"
                       placeholder="000.000.000-00"
                       value={cpf}
-                      onChange={(e) => {
-                        setCpf(formatCPF(e.target.value));
-                        if (cpfError) setCpfError(null);
-                      }}
-                      className={`mt-1.5 w-full h-10 rounded-lg border bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30 ${
-                        cpfError ? "border-destructive" : "border-border dark:border-[#3d2c1a]"
-                      }`}
+                      onChange={(e) => setCpf(formatCPF(e.target.value))}
+                      className="mt-1.5 w-full h-10 rounded-lg border border-border dark:border-[#3d2c1a] bg-transparent px-3 text-sm outline-none text-dark dark:text-[#f5edd6] focus-visible:ring-3 focus-visible:ring-terracota/30"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       Exigido pela Mercado Pago pra pagamentos via Pix.
                     </p>
-                    {cpfError && <p className="text-xs text-destructive mt-1">{cpfError}</p>}
                   </div>
                 )}
 
+                <div className="flex items-center justify-between text-sm text-muted-foreground mb-1">
+                  <span>Produtos</span>
+                  <span>{formatPrice(total)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
+                  <span>Frete</span>
+                  <span>{shippingTotal > 0 ? formatPrice(shippingTotal) : "—"}</span>
+                </div>
                 <div className="flex items-center justify-between mb-4">
                   <span className="font-semibold text-dark dark:text-[#f5edd6]">Total</span>
-                  <span className="font-bold text-xl text-terracota">{formatPrice(total)}</span>
+                  <span className="font-bold text-xl text-terracota">{formatPrice(grandTotal)}</span>
                 </div>
+
+                {formError && <p className="text-xs text-destructive mb-3">{formError}</p>}
 
                 <button
                   onClick={() => runCheckout(method)}

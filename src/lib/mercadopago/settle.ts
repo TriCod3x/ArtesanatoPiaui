@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { purchaseLabelForShipment } from "@/lib/melhorenvio/purchase";
 import type { MPPayment } from "./client";
 import type { Json } from "@/types/database";
 
@@ -82,6 +83,10 @@ export async function settlePayment(params: {
     .update({ item_status: "confirmed" })
     .eq("order_id", params.orderId)
     .eq("store_id", params.storeId);
+
+  // Compra automática da etiqueta assim que ESSA loja é paga — não espera
+  // as demais lojas do carrinho (cada uma tem sua própria conta/etiqueta).
+  await purchaseLabelForShipment(params.orderId, params.storeId);
 
   // Carrinho multi-loja: só marca o pedido inteiro como confirmado quando
   // TODAS as lojas do pedido já tiverem pagamento efetivado.

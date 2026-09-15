@@ -2,21 +2,44 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { shippingAddressSchema, type ShippingAddressInput } from "@/lib/validations";
+import { onlyDigits } from "@/lib/utils";
 
 export interface CheckoutItemInput {
   productId: string;
   quantity: number;
 }
 
+export interface SelectedShippingInput {
+  storeId: string;
+  serviceId: string;
+  serviceName: string;
+  price: number;
+  deliveryTimeDays: number;
+}
+
 /**
  * Cria o pedido (orders + order_items, status pending) revalidando preço e
  * estoque no servidor — nunca confia no total calculado no carrinho (client).
+ * Também grava o endereço de entrega e cria um `shipments` (pending) por
+ * loja com o frete escolhido — a etiqueta em si só é comprada depois que o
+ * pagamento é confirmado (ver lib/mercadopago/settle.ts).
  * Usa o client de admin pro insert porque order_items não tem policy de
  * INSERT (o carrinho é multi-loja; a autorização é feita aqui em código,
  * igual ao padrão já usado em submitSellerRequirements/approveStore).
  */
-export async function createOrder(items: CheckoutItemInput[]) {
+export async function createOrder(
+  items: CheckoutItemInput[],
+  shippingAddress: ShippingAddressInput,
+  selectedShipping: SelectedShippingInput[],
+) {
   if (items.length === 0) return { error: "Carrinho vazio." };
+
+  const addressParsed = shippingAddressSchema.safeParse(shippingAddress);
+  if (!addressParsed.success) {
+    return { error: addressParsed.error.issues[0]?.message ?? "Endereço de entrega inválido." };
+  }
+  const address = addressParsed.data;
 
   const supabase = await createClient();
   const {
@@ -61,11 +84,33 @@ export async function createOrder(items: CheckoutItemInput[]) {
     };
   });
 
-  const totalAmount = orderItems.reduce((sum, i) => sum + i.subtotal, 0);
+  const storeIds = [...new Set(orderItems.map((i) => i.store_id))];
+  const shippingByStore = new Map(selectedShipping.map((s) => [s.storeId, s]));
+  for (const storeId of storeIds) {
+    if (!shippingByStore.has(storeId)) {
+      return { error: "Selecione uma opção de frete para todas as lojas do carrinho." };
+    }
+  }
+
+  const productsTotal = orderItems.reduce((sum, i) => sum + i.subtotal, 0);
+  const shippingTotal = selectedShipping.reduce((sum, s) => sum + s.price, 0);
 
   const { data: order, error: orderError } = await admin
     .from("orders")
-    .insert({ buyer_id: user.id, total_amount: totalAmount, status: "pending" })
+    .insert({
+      buyer_id: user.id,
+      total_amount: Math.round((productsTotal + shippingTotal) * 100) / 100,
+      status: "pending",
+      shipping_name: address.recipient_name,
+      shipping_phone: onlyDigits(address.recipient_phone),
+      shipping_cep: onlyDigits(address.cep),
+      shipping_street: address.address_street,
+      shipping_number: address.address_number,
+      shipping_complement: address.address_complement || null,
+      shipping_neighborhood: address.address_neighborhood,
+      shipping_city: address.address_city,
+      shipping_state: address.address_state,
+    })
     .select("id")
     .single();
 
@@ -78,6 +123,23 @@ export async function createOrder(items: CheckoutItemInput[]) {
   if (itemsError) {
     await admin.from("orders").delete().eq("id", order.id);
     return { error: "Erro ao criar os itens do pedido. Tente novamente." };
+  }
+
+  const { error: shipmentsError } = await admin.from("shipments").insert(
+    selectedShipping.map((s) => ({
+      order_id: order.id,
+      store_id: s.storeId,
+      service_id: s.serviceId,
+      service_name: s.serviceName,
+      price: s.price,
+      delivery_time_days: s.deliveryTimeDays,
+      status: "pending",
+    })),
+  );
+
+  if (shipmentsError) {
+    await admin.from("orders").delete().eq("id", order.id);
+    return { error: "Erro ao registrar o frete do pedido. Tente novamente." };
   }
 
   for (const item of items) {
