@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { buildAuthorizationUrl } from "@/lib/mercadopago/client";
+import { buildAuthorizationUrl } from "@/lib/melhorenvio/client";
 import { isStoreConnected } from "@/lib/store-credentials";
-import { CheckCircle2, Circle, AlertCircle } from "lucide-react";
+import { CheckCircle2, Circle, AlertCircle, ArrowLeft } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
-export default async function PagamentosPage({
+export default async function FretePage({
   searchParams,
 }: {
   searchParams: Promise<{ connected?: string; error?: string }>;
@@ -29,30 +29,29 @@ export default async function PagamentosPage({
   if (!store) redirect("/minha-loja/nova");
 
   const isActive = store.status === "active";
-  const isConnected = isActive && (await isStoreConnected(store.id, "mercadopago"));
+  const isConnected = isActive && (await isStoreConnected(store.id, "melhorenvio"));
   const authUrl = isActive ? buildAuthorizationUrl(store.id) : null;
 
   return (
     <main className="max-w-2xl mx-auto px-4 py-10">
-      <header className="mb-8 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="font-display text-3xl font-bold text-dark dark:text-[#f5edd6]">Pagamentos</h1>
-          <p className="text-muted-foreground mt-1">
-            Conecte sua conta Mercado Pago pra receber pelos seus pedidos.
-          </p>
-        </div>
-        <Link
-          href="/minha-loja/frete"
-          className="text-sm font-semibold text-terracota hover:underline whitespace-nowrap"
-        >
-          Configurar frete →
-        </Link>
+      <Link
+        href="/minha-loja/pagamentos"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-terracota transition-colors mb-6"
+      >
+        <ArrowLeft size={14} /> Pagamentos
+      </Link>
+
+      <header className="mb-8">
+        <h1 className="font-display text-3xl font-bold text-dark dark:text-[#f5edd6]">Frete</h1>
+        <p className="text-muted-foreground mt-1">
+          Conecte sua conta Melhor Envio pra calcular e comprar etiquetas automaticamente.
+        </p>
       </header>
 
       {connected && (
         <div className="mb-6 flex items-center gap-2 bg-capim/10 text-capim border border-capim/20 rounded-xl px-4 py-3 text-sm font-medium">
           <CheckCircle2 size={18} />
-          Mercado Pago conectado com sucesso!
+          Melhor Envio conectado com sucesso!
         </div>
       )}
       {error && (
@@ -74,7 +73,7 @@ export default async function PagamentosPage({
                 Sua loja ainda não foi aprovada
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                Você poderá conectar o Mercado Pago assim que a análise da sua loja for concluída.
+                Você poderá conectar o Melhor Envio assim que a análise da sua loja for concluída.
               </p>
             </div>
           </div>
@@ -88,12 +87,12 @@ export default async function PagamentosPage({
               )}
               <div>
                 <p className="font-semibold text-dark dark:text-[#f5edd6]">
-                  {isConnected ? "Conectado — pronto para vender" : "Não conectado"}
+                  {isConnected ? "Conectado — pronto para calcular fretes" : "Não conectado"}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {isConnected
-                    ? "Os pagamentos dos seus pedidos vão direto pra sua conta Mercado Pago."
-                    : "Sem essa conexão, sua loja não pode receber pagamentos no marketplace."}
+                    ? "O checkout já calcula e compra fretes automaticamente pra sua loja."
+                    : "Sem essa conexão, os compradores não conseguem calcular frete pra sua loja no checkout."}
                 </p>
               </div>
             </div>
@@ -102,7 +101,7 @@ export default async function PagamentosPage({
               href={authUrl!}
               className="inline-block bg-terracota hover:bg-terracota/90 text-white font-semibold text-sm px-6 py-2.5 rounded-full transition-colors"
             >
-              {isConnected ? "Reconectar Mercado Pago" : "Conectar Mercado Pago"}
+              {isConnected ? "Reconectar Melhor Envio" : "Conectar Melhor Envio"}
             </a>
           </>
         )}

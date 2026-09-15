@@ -77,6 +77,27 @@ export type PaymentMethod = "pix" | "credit_card"
 export type PaymentStatus = "pending" | "paid" | "failed" | "refunded" | "cancelled"
 
 /** Um pagamento por loja (split 1:1 — cada loja é cobrada com o token MP dela). */
+export type Shipment = Tables<"shipments">
+export type ShipmentStatus =
+  | "pending"
+  | "purchased"
+  | "posted"
+  | "in_transit"
+  | "delivered"
+  | "cancelled"
+
+/** Uma opção de frete retornada pelo cálculo (POST /me/shipment/calculate) de uma loja. */
+export interface ShippingOption {
+  storeId: string
+  storeName: string
+  serviceId: string
+  serviceName: string
+  companyName: string
+  price: number
+  deliveryTimeDays: number
+  error?: string
+}
+
 export interface StorePaymentResult {
   storeId: string
   storeName: string

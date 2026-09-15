@@ -44,6 +44,10 @@ export function EditProductForm({ storeId, product, images, categories }: Props)
       stock: product.stock,
       category_id: product.category_id,
       status: product.status,
+      weight_grams: product.weight_grams ?? undefined,
+      height_cm: product.height_cm ?? undefined,
+      width_cm: product.width_cm ?? undefined,
+      length_cm: product.length_cm ?? undefined,
     },
   });
 
@@ -141,6 +145,62 @@ export function EditProductForm({ storeId, product, images, categories }: Props)
               className={errors.stock ? "border-destructive" : ""}
             />
             {errors.stock && <p className="text-sm text-destructive">{errors.stock.message}</p>}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="dark:text-[#c4622d]">Dimensões e peso (embalagem)</Label>
+          <p className="text-xs text-muted-foreground dark:text-[#8a6a4a]">
+            Usados pra calcular o frete no checkout — meça a caixa/embalagem pronta pro envio, não só a peça.
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="weight_grams" className="text-xs dark:text-[#c4622d]">Peso (g)</Label>
+              <Input
+                id="weight_grams"
+                type="number"
+                min="1"
+                {...register("weight_grams", { valueAsNumber: true })}
+                className={errors.weight_grams ? "border-destructive" : ""}
+              />
+              {errors.weight_grams && <p className="text-xs text-destructive">{errors.weight_grams.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="height_cm" className="text-xs dark:text-[#c4622d]">Altura (cm)</Label>
+              <Input
+                id="height_cm"
+                type="number"
+                step="0.1"
+                min="0.1"
+                {...register("height_cm", { valueAsNumber: true })}
+                className={errors.height_cm ? "border-destructive" : ""}
+              />
+              {errors.height_cm && <p className="text-xs text-destructive">{errors.height_cm.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="width_cm" className="text-xs dark:text-[#c4622d]">Largura (cm)</Label>
+              <Input
+                id="width_cm"
+                type="number"
+                step="0.1"
+                min="0.1"
+                {...register("width_cm", { valueAsNumber: true })}
+                className={errors.width_cm ? "border-destructive" : ""}
+              />
+              {errors.width_cm && <p className="text-xs text-destructive">{errors.width_cm.message}</p>}
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="length_cm" className="text-xs dark:text-[#c4622d]">Compr. (cm)</Label>
+              <Input
+                id="length_cm"
+                type="number"
+                step="0.1"
+                min="0.1"
+                {...register("length_cm", { valueAsNumber: true })}
+                className={errors.length_cm ? "border-destructive" : ""}
+              />
+              {errors.length_cm && <p className="text-xs text-destructive">{errors.length_cm.message}</p>}
+            </div>
           </div>
         </div>
 

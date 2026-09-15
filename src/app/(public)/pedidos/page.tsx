@@ -1,13 +1,13 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { Package } from "lucide-react";
+import { Package, Truck } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { formatPrice } from "@/lib/utils";
 import { RelativeTime } from "@/components/shared/RelativeTime";
-import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
+import { PLACEHOLDER_PRODUCT_IMG, SHIPMENT_STATUS_LABEL, SHIPMENT_STATUS_CLASS } from "@/lib/constants";
 import type { OrderStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -36,12 +36,21 @@ interface OrderItemRow {
   product: { name: string; slug: string; images: { url: string; is_cover: boolean }[] } | null;
 }
 
+interface ShipmentRow {
+  store_id: string;
+  service_name: string | null;
+  status: string;
+  tracking_code: string | null;
+  store: { name: string } | null;
+}
+
 interface OrderRow {
   id: string;
   status: OrderStatus;
   total_amount: number;
   created_at: string;
   items: OrderItemRow[];
+  shipments: ShipmentRow[];
 }
 
 export default async function PedidosPage() {
@@ -60,7 +69,8 @@ export default async function PedidosPage() {
       items:order_items(
         id, quantity, unit_price, subtotal,
         product:products(name, slug, images:product_images(url, is_cover))
-      )
+      ),
+      shipments(store_id, service_name, status, tracking_code, store:stores(name))
     `,
     )
     .eq("buyer_id", user.id)
@@ -171,6 +181,33 @@ export default async function PedidosPage() {
                       );
                     })}
                   </ul>
+
+                  {order.shipments.length > 0 && (
+                    <div className="flex flex-col gap-2 mt-4 pt-3 border-t border-border dark:border-[#3d2c1a]">
+                      {order.shipments.map((shipment) => (
+                        <div
+                          key={shipment.store_id}
+                          className="flex items-center justify-between gap-3 text-sm"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Truck size={14} className="text-terracota flex-shrink-0" />
+                            <span className="text-muted-foreground truncate">
+                              {shipment.store?.name ?? "Loja"}
+                              {shipment.service_name ? ` · ${shipment.service_name}` : ""}
+                              {shipment.tracking_code ? ` · ${shipment.tracking_code}` : ""}
+                            </span>
+                          </div>
+                          <span
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                              SHIPMENT_STATUS_CLASS[shipment.status] ?? "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {SHIPMENT_STATUS_LABEL[shipment.status] ?? shipment.status}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </article>
               ))}
             </div>

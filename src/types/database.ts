@@ -338,6 +338,15 @@ export type Database = {
           created_at: string
           id: string
           notes: string | null
+          shipping_cep: string | null
+          shipping_city: string | null
+          shipping_complement: string | null
+          shipping_name: string | null
+          shipping_neighborhood: string | null
+          shipping_number: string | null
+          shipping_phone: string | null
+          shipping_state: string | null
+          shipping_street: string | null
           status: Database["public"]["Enums"]["order_status"]
           total_amount: number
           updated_at: string
@@ -347,6 +356,15 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          shipping_cep?: string | null
+          shipping_city?: string | null
+          shipping_complement?: string | null
+          shipping_name?: string | null
+          shipping_neighborhood?: string | null
+          shipping_number?: string | null
+          shipping_phone?: string | null
+          shipping_state?: string | null
+          shipping_street?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total_amount: number
           updated_at?: string
@@ -356,6 +374,15 @@ export type Database = {
           created_at?: string
           id?: string
           notes?: string | null
+          shipping_cep?: string | null
+          shipping_city?: string | null
+          shipping_complement?: string | null
+          shipping_name?: string | null
+          shipping_neighborhood?: string | null
+          shipping_number?: string | null
+          shipping_phone?: string | null
+          shipping_state?: string | null
+          shipping_street?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total_amount?: number
           updated_at?: string
@@ -593,8 +620,10 @@ export type Database = {
           category_id: string | null
           created_at: string
           description: string | null
+          height_cm: number | null
           id: string
           is_featured: boolean
+          length_cm: number | null
           name: string
           price: number
           slug: string
@@ -604,13 +633,16 @@ export type Database = {
           tags: string[] | null
           updated_at: string
           weight_grams: number | null
+          width_cm: number | null
         }
         Insert: {
           category_id?: string | null
           created_at?: string
           description?: string | null
+          height_cm?: number | null
           id?: string
           is_featured?: boolean
+          length_cm?: number | null
           name: string
           price: number
           slug: string
@@ -620,13 +652,16 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           weight_grams?: number | null
+          width_cm?: number | null
         }
         Update: {
           category_id?: string | null
           created_at?: string
           description?: string | null
+          height_cm?: number | null
           id?: string
           is_featured?: boolean
+          length_cm?: number | null
           name?: string
           price?: number
           slug?: string
@@ -636,6 +671,7 @@ export type Database = {
           tags?: string[] | null
           updated_at?: string
           weight_grams?: number | null
+          width_cm?: number | null
         }
         Relationships: [
           {
@@ -937,11 +973,6 @@ export type Database = {
           description: string | null
           id: string
           logo_url: string | null
-          mp_access_token: string | null
-          mp_connected_at: string | null
-          mp_public_key: string | null
-          mp_refresh_token: string | null
-          mp_user_id: string | null
           name: string
           owner_id: string
           pagarme_recipient_id: string | null
@@ -968,11 +999,6 @@ export type Database = {
           description?: string | null
           id?: string
           logo_url?: string | null
-          mp_access_token?: string | null
-          mp_connected_at?: string | null
-          mp_public_key?: string | null
-          mp_refresh_token?: string | null
-          mp_user_id?: string | null
           name: string
           owner_id: string
           pagarme_recipient_id?: string | null
@@ -999,11 +1025,6 @@ export type Database = {
           description?: string | null
           id?: string
           logo_url?: string | null
-          mp_access_token?: string | null
-          mp_connected_at?: string | null
-          mp_public_key?: string | null
-          mp_refresh_token?: string | null
-          mp_user_id?: string | null
           name?: string
           owner_id?: string
           pagarme_recipient_id?: string | null
@@ -1022,6 +1043,113 @@ export type Database = {
             columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_integration_credentials: {
+        Row: {
+          access_token: string
+          connected_at: string
+          external_user_id: string | null
+          id: string
+          provider: string
+          public_key: string | null
+          refresh_token: string | null
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          connected_at?: string
+          external_user_id?: string | null
+          id?: string
+          provider: string
+          public_key?: string | null
+          refresh_token?: string | null
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          connected_at?: string
+          external_user_id?: string | null
+          id?: string
+          provider?: string
+          public_key?: string | null
+          refresh_token?: string | null
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_integration_credentials_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shipments: {
+        Row: {
+          created_at: string
+          delivery_time_days: number | null
+          id: string
+          melhorenvio_cart_id: string | null
+          melhorenvio_order_id: string | null
+          order_id: string
+          price: number | null
+          service_id: string | null
+          service_name: string | null
+          status: string
+          store_id: string
+          tracking_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_time_days?: number | null
+          id?: string
+          melhorenvio_cart_id?: string | null
+          melhorenvio_order_id?: string | null
+          order_id: string
+          price?: number | null
+          service_id?: string | null
+          service_name?: string | null
+          status?: string
+          store_id: string
+          tracking_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delivery_time_days?: number | null
+          id?: string
+          melhorenvio_cart_id?: string | null
+          melhorenvio_order_id?: string | null
+          order_id?: string
+          price?: number | null
+          service_id?: string | null
+          service_name?: string | null
+          status?: string
+          store_id?: string
+          tracking_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
             referencedColumns: ["id"]
           },
         ]

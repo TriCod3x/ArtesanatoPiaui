@@ -8,6 +8,7 @@ import {
   getPayment,
 } from "@/lib/mercadopago/client";
 import { settlePayment } from "@/lib/mercadopago/settle";
+import { getStoreCredential, getStoreCredentialsByStoreIds } from "@/lib/store-credentials";
 import { isValidCPF, onlyDigits } from "@/lib/utils";
 import type { PaymentMethod, StorePaymentResult } from "@/types";
 import type { Json } from "@/types/database";
@@ -19,6 +20,11 @@ interface StoreGroup {
   commissionRate: number;
   mpAccessToken: string | null;
   items: { title: string; quantity: number; unitPrice: number }[];
+  /** Subtotal dos produtos — base do cálculo da comissão (frete não é comissionado). */
+  productAmount: number;
+  shippingAmount: number;
+  shippingServiceName: string | null;
+  /** productAmount + shippingAmount — é o valor de fato cobrado do comprador. */
   amount: number;
 }
 
@@ -27,19 +33,14 @@ async function loadStoreGroups(orderId: string): Promise<StoreGroup[] | null> {
 
   const { data: items } = await admin
     .from("order_items")
-    .select("store_id, quantity, unit_price, subtotal, product:products(name), store:stores(name, commission_rate, mp_access_token, mp_connected_at)")
+    .select("store_id, quantity, unit_price, subtotal, product:products(name), store:stores(name, commission_rate)")
     .eq("order_id", orderId);
 
   if (!items || items.length === 0) return null;
 
   const groups = new Map<string, StoreGroup>();
   for (const item of items) {
-    const store = item.store as unknown as {
-      name: string;
-      commission_rate: number;
-      mp_access_token: string | null;
-      mp_connected_at: string | null;
-    };
+    const store = item.store as unknown as { name: string; commission_rate: number };
     const product = item.product as unknown as { name: string } | null;
 
     if (!groups.has(item.store_id)) {
@@ -47,8 +48,11 @@ async function loadStoreGroups(orderId: string): Promise<StoreGroup[] | null> {
         storeId: item.store_id,
         storeName: store.name,
         commissionRate: store.commission_rate,
-        mpAccessToken: store.mp_connected_at ? store.mp_access_token : null,
+        mpAccessToken: null,
         items: [],
+        productAmount: 0,
+        shippingAmount: 0,
+        shippingServiceName: null,
         amount: 0,
       });
     }
@@ -58,7 +62,28 @@ async function loadStoreGroups(orderId: string): Promise<StoreGroup[] | null> {
       quantity: item.quantity,
       unitPrice: item.unit_price,
     });
-    group.amount += item.subtotal;
+    group.productAmount += item.subtotal;
+  }
+
+  const credentials = await getStoreCredentialsByStoreIds([...groups.keys()], "mercadopago");
+  for (const group of groups.values()) {
+    group.mpAccessToken = credentials.get(group.storeId)?.accessToken ?? null;
+  }
+
+  const { data: shipments } = await admin
+    .from("shipments")
+    .select("store_id, price, service_name")
+    .eq("order_id", orderId);
+
+  for (const shipment of shipments ?? []) {
+    const group = groups.get(shipment.store_id);
+    if (!group) continue;
+    group.shippingAmount = shipment.price ?? 0;
+    group.shippingServiceName = shipment.service_name;
+  }
+
+  for (const group of groups.values()) {
+    group.amount = Math.round((group.productAmount + group.shippingAmount) * 100) / 100;
   }
 
   return Array.from(groups.values());
@@ -126,7 +151,9 @@ export async function createPayment(
       continue;
     }
 
-    const fee = Math.round(group.amount * (group.commissionRate / 100) * 100) / 100;
+    // Comissão só sobre o valor dos produtos — o frete é repassado integralmente
+    // (a Melhor Envio já debita o próprio custo da etiqueta da conta do vendedor).
+    const fee = Math.round(group.productAmount * (group.commissionRate / 100) * 100) / 100;
 
     try {
       if (method === "pix") {
@@ -175,9 +202,20 @@ export async function createPayment(
           pixExpiresAt: payment.date_of_expiration,
         });
       } else {
+        const items = group.shippingAmount > 0
+          ? [
+              ...group.items,
+              {
+                title: group.shippingServiceName ? `Frete (${group.shippingServiceName})` : "Frete",
+                quantity: 1,
+                unitPrice: group.shippingAmount,
+              },
+            ]
+          : group.items;
+
         const preference = await createCardPreference({
           sellerAccessToken: group.mpAccessToken,
-          items: group.items,
+          items,
           marketplaceFee: fee,
           orderId,
           storeId: group.storeId,
@@ -272,17 +310,12 @@ export async function checkPaymentStatus(orderId: string, storeId: string) {
   if (!payment?.external_id) return { error: "Pagamento não encontrado." };
   if (payment.status === "paid") return { success: true, status: "paid" as const };
 
-  const { data: store } = await admin
-    .from("stores")
-    .select("mp_access_token, mp_connected_at")
-    .eq("id", storeId)
-    .single();
-
-  if (!store?.mp_connected_at || !store.mp_access_token) {
+  const credential = await getStoreCredential(storeId, "mercadopago");
+  if (!credential) {
     return { error: "Loja não conectada ao Mercado Pago." };
   }
 
-  const mpPayment = await getPayment(store.mp_access_token, payment.external_id);
+  const mpPayment = await getPayment(credential.accessToken, payment.external_id);
   await settlePayment({ orderId, storeId, mpPayment });
 
   const { data: updated } = await admin

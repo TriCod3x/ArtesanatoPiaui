@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { getPayment, verifyWebhookSignature } from "@/lib/mercadopago/client";
 import { settlePayment } from "@/lib/mercadopago/settle";
+import { getStoreCredential } from "@/lib/store-credentials";
 
 /**
  * Webhook da Mercado Pago. `order_id`/`store_id` vêm na própria URL (foi
  * assim que cada pagamento/preference foi criado, um notification_url por
  * loja — ver webhookUrl() em lib/mercadopago/client.ts), o que evita ter que
- * adivinhar qual conta MP consultar: usamos direto o mp_access_token dessa
- * store pra buscar o pagamento em /v1/payments/{id}.
+ * adivinhar qual conta MP consultar: buscamos o token dessa store em
+ * store_integration_credentials pra consultar o pagamento em /v1/payments/{id}.
  */
 export async function POST(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -42,19 +42,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const admin = createAdminClient();
-    const { data: store } = await admin
-      .from("stores")
-      .select("mp_access_token")
-      .eq("id", storeId)
-      .maybeSingle();
+    const credential = await getStoreCredential(storeId, "mercadopago");
 
-    if (!store?.mp_access_token) {
+    if (!credential) {
       console.error("[mercadopago] webhook pra loja sem token conectado", { storeId });
       return NextResponse.json({ error: "store not connected" }, { status: 200 });
     }
 
-    const mpPayment = await getPayment(store.mp_access_token, dataId);
+    const mpPayment = await getPayment(credential.accessToken, dataId);
     await settlePayment({ orderId, storeId, mpPayment });
 
     return NextResponse.json({ received: true });
