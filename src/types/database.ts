@@ -274,6 +274,47 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          link: string | null
+          message: string | null
+          read_at: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          link?: string | null
+          message?: string | null
+          read_at?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          link?: string | null
+          message?: string | null
+          read_at?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       order_items: {
         Row: {
           created_at: string
@@ -887,6 +928,69 @@ export type Database = {
           },
         ]
       }
+      shipments: {
+        Row: {
+          created_at: string
+          delivery_time_days: number | null
+          id: string
+          melhorenvio_cart_id: string | null
+          melhorenvio_order_id: string | null
+          order_id: string
+          price: number | null
+          service_id: string | null
+          service_name: string | null
+          status: string
+          store_id: string
+          tracking_code: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_time_days?: number | null
+          id?: string
+          melhorenvio_cart_id?: string | null
+          melhorenvio_order_id?: string | null
+          order_id: string
+          price?: number | null
+          service_id?: string | null
+          service_name?: string | null
+          status?: string
+          store_id: string
+          tracking_code?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          delivery_time_days?: number | null
+          id?: string
+          melhorenvio_cart_id?: string | null
+          melhorenvio_order_id?: string | null
+          order_id?: string
+          price?: number | null
+          service_id?: string | null
+          service_name?: string | null
+          status?: string
+          store_id?: string
+          tracking_code?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipments_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       store_contacts: {
         Row: {
           created_at: string
@@ -915,6 +1019,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "store_contacts_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_integration_credentials: {
+        Row: {
+          access_token: string
+          connected_at: string
+          external_user_id: string | null
+          id: string
+          provider: string
+          public_key: string | null
+          refresh_token: string | null
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          connected_at?: string
+          external_user_id?: string | null
+          id?: string
+          provider: string
+          public_key?: string | null
+          refresh_token?: string | null
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          connected_at?: string
+          external_user_id?: string | null
+          id?: string
+          provider?: string
+          public_key?: string | null
+          refresh_token?: string | null
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_integration_credentials_store_id_fkey"
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"
@@ -1047,127 +1195,22 @@ export type Database = {
           },
         ]
       }
-      store_integration_credentials: {
-        Row: {
-          access_token: string
-          connected_at: string
-          external_user_id: string | null
-          id: string
-          provider: string
-          public_key: string | null
-          refresh_token: string | null
-          store_id: string
-          updated_at: string
-        }
-        Insert: {
-          access_token: string
-          connected_at?: string
-          external_user_id?: string | null
-          id?: string
-          provider: string
-          public_key?: string | null
-          refresh_token?: string | null
-          store_id: string
-          updated_at?: string
-        }
-        Update: {
-          access_token?: string
-          connected_at?: string
-          external_user_id?: string | null
-          id?: string
-          provider?: string
-          public_key?: string | null
-          refresh_token?: string | null
-          store_id?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "store_integration_credentials_store_id_fkey"
-            columns: ["store_id"]
-            isOneToOne: false
-            referencedRelation: "stores"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      shipments: {
-        Row: {
-          created_at: string
-          delivery_time_days: number | null
-          id: string
-          melhorenvio_cart_id: string | null
-          melhorenvio_order_id: string | null
-          order_id: string
-          price: number | null
-          service_id: string | null
-          service_name: string | null
-          status: string
-          store_id: string
-          tracking_code: string | null
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          delivery_time_days?: number | null
-          id?: string
-          melhorenvio_cart_id?: string | null
-          melhorenvio_order_id?: string | null
-          order_id: string
-          price?: number | null
-          service_id?: string | null
-          service_name?: string | null
-          status?: string
-          store_id: string
-          tracking_code?: string | null
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          delivery_time_days?: number | null
-          id?: string
-          melhorenvio_cart_id?: string | null
-          melhorenvio_order_id?: string | null
-          order_id?: string
-          price?: number | null
-          service_id?: string | null
-          service_name?: string | null
-          status?: string
-          store_id?: string
-          tracking_code?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "shipments_order_id_fkey"
-            columns: ["order_id"]
-            isOneToOne: false
-            referencedRelation: "orders"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "shipments_store_id_fkey"
-            columns: ["store_id"]
-            isOneToOne: false
-            referencedRelation: "stores"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      unaccent: {
-        Args: { "": string }
-        Returns: string
-      }
+      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       commission_status: "pending" | "paid" | "cancelled"
       contact_type: "whatsapp" | "email" | "instagram" | "facebook"
-      order_status: "pending" | "confirmed" | "shipped" | "delivered" | "cancelled"
+      order_status:
+        | "pending"
+        | "confirmed"
+        | "shipped"
+        | "delivered"
+        | "cancelled"
       product_status: "active" | "inactive" | "out_of_stock"
       store_status: "pending" | "active" | "suspended"
       user_role: "buyer" | "seller" | "admin"
@@ -1178,14 +1221,138 @@ export type Database = {
   }
 }
 
-export type Tables<T extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][T]["Row"]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
 
-export type TablesInsert<T extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][T]["Insert"]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
 
-export type TablesUpdate<T extends keyof Database["public"]["Tables"]> =
-  Database["public"]["Tables"][T]["Update"]
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
 
-export type Enums<T extends keyof Database["public"]["Enums"]> =
-  Database["public"]["Enums"][T]
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never) = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never) = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never) = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      commission_status: ["pending", "paid", "cancelled"],
+      contact_type: ["whatsapp", "email", "instagram", "facebook"],
+      order_status: [
+        "pending",
+        "confirmed",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ],
+      product_status: ["active", "inactive", "out_of_stock"],
+      store_status: ["pending", "active", "suspended"],
+      user_role: ["buyer", "seller", "admin"],
+    },
+  },
+} as const

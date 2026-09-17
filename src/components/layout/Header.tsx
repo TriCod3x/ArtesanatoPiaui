@@ -9,6 +9,7 @@ import { useCart } from "@/hooks/useCart";
 import { useTheme } from "@/components/shared/ThemeProvider";
 import { UserMenu } from "@/components/layout/UserMenu";
 import { SearchDropdown } from "@/components/layout/SearchDropdown";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 export function Header() {
   const { user, profile, role } = useAuth();
@@ -62,6 +63,8 @@ export function Header() {
 
           {user ? (
             <>
+              <NotificationBell />
+
               <Button
                 variant="ghost"
                 size="icon"

@@ -71,6 +71,7 @@ export interface CommentWithAuthor extends PostComment {
 
 export type Conversation = Tables<"conversations">
 export type Message = Tables<"messages">
+export type Notification = Tables<"notifications">
 
 export type Payment = Tables<"payments">
 export type PaymentMethod = "pix" | "credit_card"
