@@ -32,7 +32,21 @@ function readInitialTheme(): Theme {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(readInitialTheme);
+  // Sempre começa em "light" — igual ao servidor (que não tem acesso a
+  // localStorage/matchMedia) — pra primeira renderização do cliente bater
+  // com o HTML hidratado. Ler o tema real (localStorage ou prefers-color-scheme)
+  // só acontece depois de montar, no useEffect abaixo; se isso rodasse aqui
+  // dentro do useState (como antes), o cliente já renderizaria com o tema do
+  // SO logo na hidratação — diferente do "light" do servidor sempre que o SO
+  // estiver em dark mode, causando o erro #418.
+  const [theme, setThemeState] = useState<Theme>("light");
+
+  useEffect(() => {
+    // Sincroniza com localStorage/matchMedia (estado externo ao React) só
+    // depois de montar — é o próprio propósito do efeito, não um anti-padrão.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setThemeState(readInitialTheme());
+  }, []);
 
   // Aplica a classe no <html>.
   useEffect(() => {
