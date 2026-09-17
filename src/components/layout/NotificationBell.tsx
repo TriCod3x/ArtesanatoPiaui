@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, ArrowRight } from "lucide-react";
 import {
   getNotifications,
   getUnreadCount,
@@ -129,13 +129,19 @@ export function NotificationBell() {
             )}
             {!loading &&
               notifications?.map((notification) => (
-                <button
+                <div
                   key={notification.id}
-                  type="button"
-                  onClick={() => handleNotificationClick(notification)}
                   role="menuitem"
+                  tabIndex={0}
+                  onClick={() => handleNotificationClick(notification)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleNotificationClick(notification);
+                    }
+                  }}
                   className={cn(
-                    "w-full text-left px-3 py-3 border-b border-border dark:border-[#3d2c1a] last:border-0 hover:bg-cream dark:hover:bg-[#3d2c1a] transition-colors cursor-pointer flex gap-2.5",
+                    "w-full text-left px-3 py-3 border-b border-border dark:border-[#3d2c1a] last:border-0 hover:bg-cream dark:hover:bg-[#3d2c1a] transition-colors cursor-pointer flex gap-2.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-terracota",
                     !notification.read_at && "bg-terracota/5 dark:bg-terracota/10",
                   )}
                 >
@@ -153,12 +159,26 @@ export function NotificationBell() {
                         {notification.message}
                       </p>
                     )}
-                    <RelativeTime
-                      date={notification.created_at}
-                      className="text-[11px] text-muted-foreground dark:text-[#8a6a4a] mt-1 block"
-                    />
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      <RelativeTime
+                        date={notification.created_at}
+                        className="text-[11px] text-muted-foreground dark:text-[#8a6a4a]"
+                      />
+                      {notification.link && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleNotificationClick(notification);
+                          }}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-white bg-terracota hover:bg-terracota/90 rounded-full px-2.5 py-1 transition-colors cursor-pointer flex-shrink-0"
+                        >
+                          Ver <ArrowRight size={11} />
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </button>
+                </div>
               ))}
           </div>
         </div>
