@@ -44,10 +44,10 @@ export function EditProductForm({ storeId, product, images, categories }: Props)
       stock: product.stock,
       category_id: product.category_id,
       status: product.status,
-      weight_grams: product.weight_grams ?? undefined,
-      height_cm: product.height_cm ?? undefined,
-      width_cm: product.width_cm ?? undefined,
-      length_cm: product.length_cm ?? undefined,
+      weight_grams: product.weight_grams != null ? Number(product.weight_grams) : undefined,
+      height_cm: product.height_cm != null ? Number(product.height_cm) : undefined,
+      width_cm: product.width_cm != null ? Number(product.width_cm) : undefined,
+      length_cm: product.length_cm != null ? Number(product.length_cm) : undefined,
     },
   });
 
