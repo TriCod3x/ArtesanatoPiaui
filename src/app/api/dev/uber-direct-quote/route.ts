@@ -25,6 +25,10 @@ function isValidAddress(value: unknown): value is UberDirectAddress {
 }
 
 export async function POST(request: NextRequest) {
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
   let body: { pickup_address?: unknown; dropoff_address?: unknown };
   try {
     body = await request.json();
