@@ -56,6 +56,52 @@ export async function getSellerDocumentUrl(userId: string) {
   return { url: data.signedUrl };
 }
 
+/**
+ * Promove o usuário a vendedor nos DOIS lugares onde o papel é lido:
+ * - `profiles.role`, usado pelas policies de RLS e pelas páginas;
+ * - `user_metadata.role` (auth.users), que é o que o proxy.ts lê pra liberar
+ *   /minha-loja/* e /dashboard — sem esse, a rota continua bloqueada.
+ *
+ * Só o signUp escrevia role="seller", e ele é pulado pra quem já tinha conta
+ * de comprador: esse usuário fazia o KYC inteiro, tinha o documento aprovado
+ * e continuava `buyer`, sendo redirecionado em silêncio pra home.
+ *
+ * Não rebaixa admin: um admin com documento aprovado continua admin.
+ */
+async function promoteToSeller(
+  admin: ReturnType<typeof createAdminClient>,
+  userId: string,
+): Promise<{ error: string } | { success: true }> {
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+
+  if (profile?.role === "admin") return { success: true };
+
+  const { error: profileError } = await admin
+    .from("profiles")
+    .update({ role: "seller" })
+    .eq("id", userId);
+
+  if (profileError) {
+    console.error(`[admin] falha ao promover profiles.role de ${userId}:`, profileError);
+    return { error: "profiles.role" };
+  }
+
+  const { error: metadataError } = await admin.auth.admin.updateUserById(userId, {
+    user_metadata: { role: "seller" },
+  });
+
+  if (metadataError) {
+    console.error(`[admin] falha ao promover user_metadata.role de ${userId}:`, metadataError);
+    return { error: "user_metadata.role" };
+  }
+
+  return { success: true };
+}
+
 export async function approveSellerDocument(userId: string) {
   const auth = await requireAdmin();
   if ("error" in auth) return auth;
@@ -72,6 +118,19 @@ export async function approveSellerDocument(userId: string) {
     .eq("user_id", userId);
 
   if (error) return { error: "Erro ao aprovar o documento." };
+
+  // Roda sempre que o documento é aprovado, não só no primeiro cadastro: é
+  // justamente o comprador que virou vendedor que chega aqui ainda como
+  // `buyer`. Reaprovar um documento já aprovado é idempotente.
+  const promotion = await promoteToSeller(admin, userId);
+  if ("error" in promotion) {
+    // O documento JÁ foi aprovado acima; só a promoção falhou. A mensagem diz
+    // o que ficou pendente pro admin poder reaprovar (a operação se repete
+    // sem efeito colateral) em vez de achar que deu tudo certo.
+    return {
+      error: `Documento aprovado, mas não foi possível liberar o acesso de vendedor (${promotion.error}). Aprove novamente para tentar de novo.`,
+    };
+  }
 
   revalidatePath("/admin/lojas");
   revalidatePath("/dashboard");
