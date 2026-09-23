@@ -141,7 +141,24 @@ export async function settlePayment(params: {
 
   // Compra automática da etiqueta assim que ESSA loja é paga — não espera
   // as demais lojas do carrinho (cada uma tem sua própria conta/etiqueta).
-  await purchaseLabelForShipment(params.orderId, params.storeId);
+  //
+  // Best-effort, e por isso dentro de try: o pagamento já foi marcado como pago
+  // e a comissão já foi lançada acima, e o que vem depois (fechar o pedido
+  // quando todas as lojas pagaram) precisa acontecer mesmo que o frete falhe.
+  // As leituras que purchaseLabelForShipment faz antes do try interno dela
+  // (incluindo duas chamadas à API admin do Supabase) podem rejeitar por rede;
+  // sem esta guarda, o pedido ficava preso em 'pending' para sempre, porque a
+  // retentativa do webhook sai por "already_settled" e nunca chega na
+  // atualização final.
+  try {
+    await purchaseLabelForShipment(params.orderId, params.storeId);
+  } catch (err) {
+    console.error(
+      "[shipments][auditoria] logística falhou depois do pagamento confirmado — pedido segue seu curso",
+      { orderId: params.orderId, storeId: params.storeId },
+      err,
+    );
+  }
 
   // Carrinho multi-loja: só marca o pedido inteiro como confirmado quando
   // TODAS as lojas do pedido já tiverem pagamento efetivado.
