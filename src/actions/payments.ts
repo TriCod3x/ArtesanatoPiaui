@@ -89,7 +89,7 @@ async function loadStoreGroups(orderId: string): Promise<StoreGroup[] | null> {
   return Array.from(groups.values());
 }
 
-async function assertOwnPendingOrder(
+async function assertOwnOrder(
   orderId: string,
 ): Promise<{ error: string } | { user: User; order: { id: string; status: string } }> {
   const supabase = await createClient();
@@ -121,9 +121,15 @@ export async function createPayment(
   method: PaymentMethod,
   payerCpf?: string,
 ): Promise<{ error: string } | { success: true; payments: StorePaymentResult[] }> {
-  const ctx = await assertOwnPendingOrder(orderId);
+  const ctx = await assertOwnOrder(orderId);
   if ("error" in ctx) return { error: ctx.error };
-  const { user } = ctx;
+  const { user, order } = ctx;
+
+  // Só pedido aguardando pagamento gera cobrança nova — sem isso dava pra
+  // chamar createPayment de novo em cima de um pedido já pago/confirmado.
+  if (order.status !== "pending") {
+    return { error: "Este pedido não está mais aguardando pagamento." };
+  }
 
   // Cartão não precisa: o Checkout Pro coleta os dados do pagador na própria
   // tela deles. Pix exige CPF na Payments API (payer.identification).
@@ -296,7 +302,7 @@ export async function getOrderPaymentStatus(orderId: string): Promise<StorePayme
 
 /** Botão "verificar status" (Pix) — consulta a Mercado Pago e sincroniza o banco. */
 export async function checkPaymentStatus(orderId: string, storeId: string) {
-  const ctx = await assertOwnPendingOrder(orderId);
+  const ctx = await assertOwnOrder(orderId);
   if ("error" in ctx) return { error: ctx.error };
 
   const admin = createAdminClient();

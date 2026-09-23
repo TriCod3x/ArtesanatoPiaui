@@ -213,6 +213,8 @@ export interface MPPayment {
   id: number;
   status: "pending" | "approved" | "authorized" | "in_process" | "in_mediation" | "rejected" | "cancelled" | "refunded" | "charged_back";
   external_reference: string | null;
+  /** Valor efetivamente cobrado — conferido contra o pedido em settlePayment(). */
+  transaction_amount: number | null;
 }
 
 export async function getPayment(sellerAccessToken: string, paymentId: string): Promise<MPPayment> {
@@ -233,6 +235,19 @@ export interface WebhookSignatureInput {
   dataId: string;
 }
 
+/**
+ * Janela de frescor do `ts` assinado. Sem ela, uma notificação capturada
+ * continua com assinatura válida pra sempre e pode ser reenviada à vontade.
+ */
+const SIGNATURE_MAX_AGE_MS = 5 * 60 * 1000;
+
+/** `ts` chega em segundos ou milissegundos dependendo do evento. */
+function signatureTimestampMs(ts: string): number | null {
+  const value = Number(ts);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value > 1e12 ? value : value * 1000;
+}
+
 export function verifyWebhookSignature(input: WebhookSignatureInput): boolean {
   if (!input.xSignature || !input.xRequestId) return false;
 
@@ -245,6 +260,15 @@ export function verifyWebhookSignature(input: WebhookSignatureInput): boolean {
   const ts = parts["ts"];
   const v1 = parts["v1"];
   if (!ts || !v1) return false;
+
+  const tsMs = signatureTimestampMs(ts);
+  if (tsMs === null || Math.abs(Date.now() - tsMs) > SIGNATURE_MAX_AGE_MS) {
+    console.warn("[mercadopago][auditoria] assinatura fora da janela de frescor — recusada", {
+      dataId: input.dataId,
+      ts,
+    });
+    return false;
+  }
 
   const manifest = `id:${input.dataId.toLowerCase()};request-id:${input.xRequestId};ts:${ts};`;
   const expected = createHmac("sha256", env("MERCADOPAGO_WEBHOOK_SECRET"))

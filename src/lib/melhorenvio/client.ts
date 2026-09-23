@@ -326,13 +326,6 @@ export function verifyWebhookSignature(rawBody: string, signature: string | null
     .update(rawBody)
     .digest("base64");
 
-  // TODO(debug temporário — remover depois de confirmar no painel da Melhor
-  // Envio que o cadastro do webhook passa): compara os dois valores nos logs
-  // de produção sem nunca logar o secret em si.
-  console.log("[melhorenvio][debug] x-me-signature recebido:", signature);
-  console.log("[melhorenvio][debug] hmac calculado (base64):", expected);
-  console.log("[melhorenvio][debug] rawBody length:", rawBody.length, "rawBody (primeiros 200 chars):", rawBody.slice(0, 200));
-
   const a = Buffer.from(signature);
   const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
