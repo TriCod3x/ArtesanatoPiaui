@@ -9,7 +9,8 @@ import {
   MAX_ID_DOCUMENT_BYTES,
   type StoreInput,
 } from "@/lib/validations";
-import { COMMISSION_RATE, IDENTITY_DOCUMENTS_BUCKET } from "@/lib/constants";
+import { COMMISSION_RATE, IDENTITY_DOCUMENTS_BUCKET, STORE_REQUIRED_STATE } from "@/lib/constants";
+import { geocodeAddress } from "@/lib/geocoding";
 import { onlyDigits, stripPhone } from "@/lib/utils";
 
 const DOCUMENT_EXT_BY_TYPE: Record<string, string> = {
@@ -23,6 +24,13 @@ export async function createStore(data: StoreInput) {
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Você precisa estar logado." };
+
+  // Restrição de marketplace: loja só no Piauí. Vale só pra loja — conta de
+  // comprador não tem restrição de UF.
+  const storeState = (data.state ?? STORE_REQUIRED_STATE).trim().toUpperCase();
+  if (storeState !== STORE_REQUIRED_STATE) {
+    return { error: "No momento só aceitamos lojas com endereço no Piauí (PI)." };
+  }
 
   // Reaproveita o endereço informado no cadastro de vendedor (KYC), se houver.
   const { data: verification } = await supabase
@@ -41,7 +49,7 @@ export async function createStore(data: StoreInput) {
       slug: data.slug,
       description: data.description,
       city: verification?.address_city || data.city,
-      state: data.state ?? "PI",
+      state: storeState,
       logo_url: data.logo_url ?? null,
       banner_url: data.banner_url ?? null,
       status: "pending",
@@ -74,7 +82,57 @@ export async function createStore(data: StoreInput) {
     await supabase.from("store_contacts").insert(contacts);
   }
 
+  await geocodeStore(store.id, {
+    street: verification?.address_street ?? null,
+    number: verification?.address_number ?? null,
+    neighborhood: verification?.address_neighborhood ?? null,
+    city: verification?.address_city || data.city,
+    state: storeState,
+    cep: verification?.cep ?? null,
+  });
+
   return { success: true };
+}
+
+/**
+ * Geocodifica o endereço da loja e grava lat/long. Best-effort por decisão de
+ * produto: se o Nominatim não resolver, a loja continua criada/editada — ela só
+ * não fica elegível à entrega expressa até alguém corrigir o endereço. Por isso
+ * nada aqui propaga erro pra quem chamou.
+ *
+ * Escreve via service role porque latitude/longitude são campos derivados pelo
+ * sistema, não entrada do dono da loja.
+ */
+async function geocodeStore(
+  storeId: string,
+  address: {
+    street: string | null;
+    number: string | null;
+    neighborhood: string | null;
+    city: string | null;
+    state: string | null;
+    cep: string | null;
+  },
+) {
+  try {
+    const coordinates = await geocodeAddress(address);
+    if (!coordinates) {
+      console.warn("[geocoding] endereço da loja não resolveu — segue sem coordenadas", { storeId });
+      return;
+    }
+
+    const admin = createAdminClient();
+    await admin
+      .from("stores")
+      .update({
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        geocoded_at: new Date().toISOString(),
+      })
+      .eq("id", storeId);
+  } catch (err) {
+    console.error("[geocoding] falha ao gravar coordenadas da loja", { storeId }, err);
+  }
 }
 
 export async function updateStore(storeId: string, data: Partial<StoreInput>) {
@@ -101,6 +159,28 @@ export async function updateStore(storeId: string, data: Partial<StoreInput>) {
     .eq("owner_id", user.id);
 
   if (error) return { error: "Erro ao atualizar loja." };
+
+  // Cidade/UF mudaram: as coordenadas antigas não valem mais. Relê o endereço
+  // completo já gravado (rua/número/bairro/CEP vêm do KYC, não deste form) e
+  // regeocodifica.
+  if (data.city !== undefined || data.state !== undefined) {
+    const { data: addressRow } = await supabase
+      .from("stores")
+      .select("address_street, address_number, address_neighborhood, city, state, cep")
+      .eq("id", storeId)
+      .maybeSingle();
+
+    if (addressRow) {
+      await geocodeStore(storeId, {
+        street: addressRow.address_street,
+        number: addressRow.address_number,
+        neighborhood: addressRow.address_neighborhood,
+        city: addressRow.city,
+        state: addressRow.state,
+        cep: addressRow.cep,
+      });
+    }
+  }
 
   // Atualizar contatos se fornecidos
   if (whatsapp !== undefined) {
@@ -206,6 +286,12 @@ export async function submitSellerRequirements(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
   const values = parsed.data;
+
+  // O schema já recusa UF != PI; esta checagem é a garantia no servidor de que
+  // nenhum payload montado à mão passa por cima da regra de marketplace.
+  if (values.address_state !== STORE_REQUIRED_STATE) {
+    return { error: "No momento só aceitamos lojas com endereço no Piauí (PI)." };
+  }
 
   if (!data.accept_terms) {
     return { error: "Você precisa aceitar os termos de uso." };

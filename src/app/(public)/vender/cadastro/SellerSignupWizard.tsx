@@ -18,6 +18,7 @@ import {
   MAX_ID_DOCUMENT_BYTES,
 } from "@/lib/validations";
 import { formatCEP, formatCNPJ, formatCPF, onlyDigits } from "@/lib/utils";
+import { STORE_REQUIRED_STATE } from "@/lib/constants";
 import { fetchAddressByCep } from "@/lib/viacep";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -72,7 +73,8 @@ export function SellerSignupWizard({
     address_complement: initialValues.address_complement ?? "",
     address_neighborhood: initialValues.address_neighborhood ?? "",
     address_city: initialValues.address_city ?? "",
-    address_state: initialValues.address_state ?? "",
+    // UF da loja é fixa: só Piauí (ver STORE_REQUIRED_STATE).
+    address_state: initialValues.address_state || STORE_REQUIRED_STATE,
   });
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -474,10 +476,13 @@ function AddressStep({
       setValue("address_neighborhood", address.neighborhood, {
         shouldValidate: true,
       });
+    if (address.state && address.state.toUpperCase() !== STORE_REQUIRED_STATE) {
+      toast.error("No momento só aceitamos lojas com endereço no Piauí (PI).");
+      return;
+    }
     if (address.city)
       setValue("address_city", address.city, { shouldValidate: true });
-    if (address.state)
-      setValue("address_state", address.state, { shouldValidate: true });
+    setValue("address_state", STORE_REQUIRED_STATE, { shouldValidate: true });
   };
 
   const onSubmit = handleSubmit((values) => onNext(values));
@@ -577,12 +582,16 @@ function AddressStep({
           <Label htmlFor="address_state" className="dark:text-terracota">
             UF
           </Label>
-          <Input
+          <select
             id="address_state"
-            maxLength={2}
             {...register("address_state")}
-            className={errors.address_state ? "border-destructive uppercase" : "uppercase"}
-          />
+            className="w-full border border-border dark:border-[#3d2c1a] rounded-lg px-3 py-2 text-sm bg-white dark:bg-[#2a1e0f] text-dark dark:text-[#f5edd6] focus:outline-none focus:ring-2 focus:ring-terracota"
+          >
+            <option value={STORE_REQUIRED_STATE}>PI — Piauí</option>
+          </select>
+          <p className="text-xs text-muted-foreground">
+            No momento só aceitamos lojas com endereço no Piauí.
+          </p>
           <FieldError message={errors.address_state?.message} />
         </div>
       </div>

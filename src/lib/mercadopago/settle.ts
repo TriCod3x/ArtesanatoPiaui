@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { purchaseLabelForShipment } from "@/lib/melhorenvio/purchase";
+import { dispatchExpressDelivery } from "@/lib/uber-direct-dispatch";
 import type { MPPayment } from "./client";
 import type { Json } from "@/types/database";
 
@@ -139,19 +140,31 @@ export async function settlePayment(params: {
     .eq("order_id", params.orderId)
     .eq("store_id", params.storeId);
 
-  // Compra automática da etiqueta assim que ESSA loja é paga — não espera
-  // as demais lojas do carrinho (cada uma tem sua própria conta/etiqueta).
+  // Logística automática assim que ESSA loja é paga — não espera as demais
+  // lojas do carrinho (cada uma tem sua própria conta/etiqueta). Qual caminho
+  // depende do que o comprador escolheu no checkout: entrega expressa dispara
+  // a corrida na Uber Direct, o resto compra etiqueta na Melhor Envio.
   //
-  // Best-effort, e por isso dentro de try: o pagamento já foi marcado como pago
-  // e a comissão já foi lançada acima, e o que vem depois (fechar o pedido
-  // quando todas as lojas pagaram) precisa acontecer mesmo que o frete falhe.
-  // As leituras que purchaseLabelForShipment faz antes do try interno dela
-  // (incluindo duas chamadas à API admin do Supabase) podem rejeitar por rede;
-  // sem esta guarda, o pedido ficava preso em 'pending' para sempre, porque a
-  // retentativa do webhook sai por "already_settled" e nunca chega na
-  // atualização final.
+  // Este bloco INTEIRO é best-effort e não pode derrubar o resto: o pagamento
+  // já foi marcado como pago e a comissão já foi lançada acima, e o que vem
+  // depois (fechar o pedido quando todas as lojas pagaram) precisa acontecer
+  // mesmo que a logística falhe. Sem este try, um erro de rede aqui deixaria o
+  // pedido preso em 'pending' para sempre — a idempotência do settlePayment
+  // faz a retentativa do webhook sair por "already_settled" sem nunca chegar
+  // na atualização final.
   try {
-    await purchaseLabelForShipment(params.orderId, params.storeId);
+    const { data: shipmentCarrier } = await admin
+      .from("shipments")
+      .select("carrier")
+      .eq("order_id", params.orderId)
+      .eq("store_id", params.storeId)
+      .maybeSingle();
+
+    if (shipmentCarrier?.carrier === "uber_direct") {
+      await dispatchExpressDelivery(params.orderId, params.storeId);
+    } else {
+      await purchaseLabelForShipment(params.orderId, params.storeId);
+    }
   } catch (err) {
     console.error(
       "[shipments][auditoria] logística falhou depois do pagamento confirmado — pedido segue seu curso",

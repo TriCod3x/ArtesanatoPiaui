@@ -114,3 +114,18 @@ export const SHIPMENT_STATUS_CLASS: Record<string, string> = {
   delivered: "bg-capim/15 text-capim",
   cancelled: "bg-destructive/15 text-destructive",
 };
+
+// serviceId usado nas opções de frete da Uber Direct. Melhor Envio usa o id
+// numérico do serviço; a Uber Direct não tem esse conceito, então marcamos a
+// opção com essa constante (é ela que distingue os dois no shipments.service_id).
+export const UBER_DIRECT_SERVICE_ID = "uber-direct";
+
+// Raio máximo, em km, entre o endereço DA LOJA e o endereço de entrega pra que
+// a entrega expressa (Uber Direct) seja oferecida. Distância em linha reta
+// (haversine) — a rodoviária é sempre maior, então isso é um filtro barato
+// antes de pedir cotação; quem decide cobertura de fato é a Uber.
+export const EXPRESS_DELIVERY_MAX_KM = 30;
+
+// O marketplace só aceita LOJAS com endereço no Piauí. Não vale pra conta de
+// comprador: comprador de qualquer UF compra normalmente.
+export const STORE_REQUIRED_STATE = "PI";

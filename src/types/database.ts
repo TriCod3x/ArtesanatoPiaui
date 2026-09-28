@@ -930,8 +930,10 @@ export type Database = {
       }
       shipments: {
         Row: {
+          carrier: string
           created_at: string
           delivery_time_days: number | null
+          fulfillment_note: string | null
           id: string
           melhorenvio_cart_id: string | null
           melhorenvio_order_id: string | null
@@ -942,11 +944,16 @@ export type Database = {
           status: string
           store_id: string
           tracking_code: string | null
+          uber_delivery_id: string | null
+          uber_delivery_status: string | null
+          uber_tracking_url: string | null
           updated_at: string
         }
         Insert: {
+          carrier?: string
           created_at?: string
           delivery_time_days?: number | null
+          fulfillment_note?: string | null
           id?: string
           melhorenvio_cart_id?: string | null
           melhorenvio_order_id?: string | null
@@ -957,11 +964,16 @@ export type Database = {
           status?: string
           store_id: string
           tracking_code?: string | null
+          uber_delivery_id?: string | null
+          uber_delivery_status?: string | null
+          uber_tracking_url?: string | null
           updated_at?: string
         }
         Update: {
+          carrier?: string
           created_at?: string
           delivery_time_days?: number | null
+          fulfillment_note?: string | null
           id?: string
           melhorenvio_cart_id?: string | null
           melhorenvio_order_id?: string | null
@@ -972,6 +984,9 @@ export type Database = {
           status?: string
           store_id?: string
           tracking_code?: string | null
+          uber_delivery_id?: string | null
+          uber_delivery_status?: string | null
+          uber_tracking_url?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -1119,8 +1134,11 @@ export type Database = {
           commission_rate: number
           created_at: string
           description: string | null
+          geocoded_at: string | null
           id: string
+          latitude: number | null
           logo_url: string | null
+          longitude: number | null
           name: string
           owner_id: string
           pagarme_recipient_id: string | null
@@ -1145,8 +1163,11 @@ export type Database = {
           commission_rate?: number
           created_at?: string
           description?: string | null
+          geocoded_at?: string | null
           id?: string
+          latitude?: number | null
           logo_url?: string | null
+          longitude?: number | null
           name: string
           owner_id: string
           pagarme_recipient_id?: string | null
@@ -1171,8 +1192,11 @@ export type Database = {
           commission_rate?: number
           created_at?: string
           description?: string | null
+          geocoded_at?: string | null
           id?: string
+          latitude?: number | null
           logo_url?: string | null
+          longitude?: number | null
           name?: string
           owner_id?: string
           pagarme_recipient_id?: string | null

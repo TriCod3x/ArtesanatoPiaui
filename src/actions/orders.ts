@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { shippingAddressSchema, type ShippingAddressInput } from "@/lib/validations";
 import { onlyDigits } from "@/lib/utils";
+import type { ShippingCarrier } from "@/types";
 
 export interface CheckoutItemInput {
   productId: string;
@@ -12,6 +13,8 @@ export interface CheckoutItemInput {
 
 export interface SelectedShippingInput {
   storeId: string;
+  /** Quem entrega — decide o que roda quando o pagamento confirma. */
+  carrier: ShippingCarrier;
   serviceId: string;
   serviceName: string;
   price: number;
@@ -129,6 +132,7 @@ export async function createOrder(
     selectedShipping.map((s) => ({
       order_id: order.id,
       store_id: s.storeId,
+      carrier: s.carrier,
       service_id: s.serviceId,
       service_name: s.serviceName,
       price: s.price,

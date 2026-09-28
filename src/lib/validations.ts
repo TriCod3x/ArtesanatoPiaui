@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isValidCPF, isValidCNPJ, onlyDigits } from "@/lib/utils";
+import { STORE_REQUIRED_STATE } from "@/lib/constants";
 
 export const signInSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -128,7 +129,11 @@ export const sellerAddressSchema = z.object({
     .string()
     .trim()
     .length(2, "UF deve ter 2 letras")
-    .transform((v) => v.toUpperCase()),
+    .transform((v) => v.toUpperCase())
+    .refine(
+      (v) => v === STORE_REQUIRED_STATE,
+      "No momento só aceitamos lojas com endereço no Piauí (PI).",
+    ),
 });
 
 /** Etapa 5 — termos de uso. */

@@ -87,15 +87,24 @@ export type ShipmentStatus =
   | "delivered"
   | "cancelled"
 
-/** Uma opção de frete retornada pelo cálculo (POST /me/shipment/calculate) de uma loja. */
+export type ShippingCarrier = "melhorenvio" | "uber_direct"
+
+/** Uma opção de frete oferecida por uma loja para o endereço de entrega escolhido. */
 export interface ShippingOption {
   storeId: string
   storeName: string
+  // Quem faz a entrega. "uber_direct" só aparece quando a loja está na mesma
+  // cidade/UF do endereço de entrega (ver actions/shipping.ts).
+  carrier: ShippingCarrier
+  // Melhor Envio: id numérico do serviço (usado depois pra comprar a etiqueta).
+  // Uber Direct: a constante UBER_DIRECT_SERVICE_ID.
   serviceId: string
   serviceName: string
   companyName: string
   price: number
   deliveryTimeDays: number
+  // Só Uber Direct: previsão de entrega (ISO). Melhor Envio usa deliveryTimeDays.
+  deliveryEtaISO?: string | null
   error?: string
 }
 

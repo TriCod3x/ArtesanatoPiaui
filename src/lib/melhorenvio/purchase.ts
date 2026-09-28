@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getStoreCredential } from "@/lib/store-credentials";
 import { onlyDigits } from "@/lib/utils";
+import { UBER_DIRECT_SERVICE_ID } from "@/lib/constants";
 import { addToCart, checkoutCart, generateLabel, getTracking, type MEAddress } from "./client";
 
 /**
@@ -33,6 +34,20 @@ export async function purchaseLabelForShipment(orderId: string, storeId: string)
     .maybeSingle();
 
   if (!shipment || shipment.status !== "pending" || !shipment.service_id) return;
+
+  // Frete expresso (Uber Direct) não tem etiqueta Melhor Envio: o service_id é
+  // UBER_DIRECT_SERVICE_ID, não um id numérico de serviço. Sem esse guard o
+  // Number(service_id) abaixo viraria NaN e mandaria lixo pro addToCart. Quem
+  // cuida desse caso é dispatchExpressDelivery() — o settlePayment já roteia
+  // por shipments.carrier, então chegar aqui com frete expresso significa que
+  // o roteamento errou ou o carrier está inconsistente com o service_id.
+  if (shipment.service_id === UBER_DIRECT_SERVICE_ID) {
+    console.warn(
+      "[shipments] compra de etiqueta chamada para frete expresso (Uber Direct) — ignorado",
+      { orderId, storeId },
+    );
+    return;
+  }
 
   const { data: order } = await admin
     .from("orders")
