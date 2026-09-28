@@ -135,7 +135,17 @@ async function geocodeStore(
   }
 }
 
-export async function updateStore(storeId: string, data: Partial<StoreInput>) {
+export async function updateStore(
+  storeId: string,
+  data: Partial<StoreInput> & {
+    // Fora do storeSchema (vêm do KYC, não do form de edição da loja hoje),
+    // mas a action já aceita gravá-los caso um chamador futuro os informe.
+    cep?: string | null;
+    address_street?: string | null;
+    address_number?: string | null;
+    address_neighborhood?: string | null;
+  },
+) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -160,10 +170,18 @@ export async function updateStore(storeId: string, data: Partial<StoreInput>) {
 
   if (error) return { error: "Erro ao atualizar loja." };
 
-  // Cidade/UF mudaram: as coordenadas antigas não valem mais. Relê o endereço
-  // completo já gravado (rua/número/bairro/CEP vêm do KYC, não deste form) e
-  // regeocodifica.
-  if (data.city !== undefined || data.state !== undefined) {
+  // Qualquer parte do endereço mudou: as coordenadas antigas não valem mais.
+  // Relê o endereço completo já gravado (pode ter vindo parte deste update,
+  // parte do KYC anterior) e regeocodifica.
+  const addressChanged =
+    data.city !== undefined ||
+    data.state !== undefined ||
+    data.cep !== undefined ||
+    data.address_street !== undefined ||
+    data.address_number !== undefined ||
+    data.address_neighborhood !== undefined;
+
+  if (addressChanged) {
     const { data: addressRow } = await supabase
       .from("stores")
       .select("address_street, address_number, address_neighborhood, city, state, cep")

@@ -38,6 +38,10 @@ function StoreShippingLine({
 
 export function OrderSummary({ groups, quotes, selectedShipping, total, shippingTotal, grandTotal }: OrderSummaryProps) {
   const anyShippingSelected = Object.keys(selectedShipping).length > 0;
+  // Com uma loja só, o frete da loja E o frete total são o mesmo número — mostrar
+  // os dois seria duplicar a mesma informação. Com várias lojas, o frete por loja
+  // é informação nova (a soma no bloco final não deixa claro quanto é de cada).
+  const showPerStoreShipping = groups.length > 1;
 
   return (
     <div
@@ -75,10 +79,12 @@ export function OrderSummary({ groups, quotes, selectedShipping, total, shipping
               <span className="text-[#5A4632] dark:text-[#D9C4A0]">Subtotal</span>
               <span className="font-medium text-dark dark:text-[#f5edd6]">{formatPrice(group.subtotal)}</span>
             </div>
-            <div className="flex items-center justify-between text-xs mt-0.5">
-              <span className="text-[#5A4632] dark:text-[#D9C4A0]">Frete</span>
-              <StoreShippingLine storeId={group.storeId} quotes={quotes} selectedShipping={selectedShipping} />
-            </div>
+            {showPerStoreShipping && (
+              <div className="flex items-center justify-between text-xs mt-0.5">
+                <span className="text-[#5A4632] dark:text-[#D9C4A0]">Frete</span>
+                <StoreShippingLine storeId={group.storeId} quotes={quotes} selectedShipping={selectedShipping} />
+              </div>
+            )}
           </div>
         ))}
       </div>

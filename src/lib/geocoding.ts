@@ -14,6 +14,8 @@ const REQUEST_TIMEOUT_MS = 8_000;
 export interface Coordinates {
   latitude: number;
   longitude: number;
+  /** Endereço normalizado que o Nominatim resolveu — útil pra auditoria/log. */
+  displayName?: string;
 }
 
 export interface GeocodeAddressInput {
@@ -68,6 +70,7 @@ function buildQuery(address: GeocodeAddressInput): string | null {
 interface NominatimResult {
   lat?: string;
   lon?: string;
+  display_name?: string;
 }
 
 /**
@@ -111,7 +114,7 @@ export async function geocodeAddress(address: GeocodeAddressInput): Promise<Coor
       const longitude = Number(first.lon);
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
 
-      return { latitude, longitude };
+      return { latitude, longitude, displayName: first.display_name };
     });
   } catch (err) {
     console.error(`[geocoding] falha ao geocodificar "${query}":`, err);
