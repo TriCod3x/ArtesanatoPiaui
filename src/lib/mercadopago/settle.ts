@@ -115,7 +115,7 @@ export async function settlePayment(params: {
 
   const { data: store } = await admin
     .from("stores")
-    .select("commission_rate")
+    .select("commission_rate, owner_id")
     .eq("id", params.storeId)
     .single();
 
@@ -182,6 +182,30 @@ export async function settlePayment(params: {
     }
 
     return { settled: true };
+  }
+
+  // "Novo pedido pago" pro dono da loja — settlePayment não avisava ninguém
+  // da loja quando o pagamento confirmava (só a auditoria de admin, no
+  // caminho de erro acima). Try/catch próprio, ANTES da logística: o aviso
+  // é sobre o pagamento já confirmado (gravado acima) e não pode depender de
+  // a etiqueta ter sido comprada ou a Uber ter aceitado a corrida — se
+  // qualquer uma dessas falhar, a artesã ainda precisa saber que tem um
+  // pedido pago esperando. Uma notificação por loja por pedido.
+  try {
+    if (store?.owner_id) {
+      await admin.from("notifications").insert({
+        user_id: store.owner_id,
+        type: "novo_pedido_pago",
+        title: "Novo pedido pago",
+        message: `Pedido #${params.orderId.slice(0, 8)} foi pago e está pronto pra você preparar o envio.`,
+        link: "/minha-loja/pedidos",
+      });
+    }
+  } catch (err) {
+    console.error("[shipments][auditoria] falha ao notificar loja de novo pedido pago", {
+      orderId: params.orderId,
+      storeId: params.storeId,
+    }, err);
   }
 
   // Logística automática assim que ESSA loja é paga — não espera as demais

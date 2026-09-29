@@ -189,6 +189,7 @@ export default async function DashboardPage() {
             value: ordersToShipCount ?? 0,
             color: "text-capim",
             bg: "bg-capim/10",
+            href: "/minha-loja/pedidos",
           },
           {
             icon: DollarSign,
@@ -204,15 +205,24 @@ export default async function DashboardPage() {
             color: "text-dark dark:text-[#f5edd6]",
             bg: "bg-dark/10 dark:bg-[#f5edd6]/10",
           },
-        ].map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-[#2a1e0f] rounded-2xl border border-border dark:border-[#3d2c1a] p-6">
-            <div className={`${stat.bg} ${stat.color} w-10 h-10 rounded-xl flex items-center justify-center mb-4`}>
-              <stat.icon size={20} />
+        ].map((stat) => {
+          const card = (
+            <div className="bg-white dark:bg-[#2a1e0f] rounded-2xl border border-border dark:border-[#3d2c1a] p-6 h-full">
+              <div className={`${stat.bg} ${stat.color} w-10 h-10 rounded-xl flex items-center justify-center mb-4`}>
+                <stat.icon size={20} />
+              </div>
+              <p className="text-2xl font-bold text-dark dark:text-[#f5edd6]">{stat.value}</p>
+              <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
             </div>
-            <p className="text-2xl font-bold text-dark dark:text-[#f5edd6]">{stat.value}</p>
-            <p className="text-sm text-muted-foreground mt-1">{stat.label}</p>
-          </div>
-        ))}
+          );
+          return stat.href ? (
+            <Link key={stat.label} href={stat.href} className="hover:shadow-sm transition-shadow rounded-2xl">
+              {card}
+            </Link>
+          ) : (
+            <div key={stat.label}>{card}</div>
+          );
+        })}
       </div>
 
       {/* Empty products state */}
@@ -240,7 +250,7 @@ export default async function DashboardPage() {
         {[
           { href: "/meus-produtos", label: "Gerenciar produtos", icon: Package },
           { href: "/minha-loja", label: "Editar loja", icon: ShoppingBag },
-          { href: "/pedidos", label: "Ver pedidos", icon: DollarSign },
+          { href: "/minha-loja/pedidos", label: "Ver pedidos", icon: DollarSign },
         ].map((item) => (
           <Link
             key={item.href}
