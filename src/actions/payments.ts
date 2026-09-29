@@ -142,6 +142,31 @@ export async function createPayment(
   if (!groups) return { error: "Pedido sem itens." };
 
   const admin = createAdminClient();
+
+  // O estoque só é decrementado pelo trigger quando o pagamento confirma
+  // (não há reserva na criação do pedido) — então aqui valida estoque >=
+  // quantidade de cada item, junto com produto/loja ainda ativos. Sem isso o
+  // comprador pagaria por algo que não tem mais como ser entregue.
+  const { data: itemsToCheck } = await admin
+    .from("order_items")
+    .select("quantity, product:products(name, status, stock, store:stores(status))")
+    .eq("order_id", orderId);
+
+  for (const item of itemsToCheck ?? []) {
+    const product = item.product as unknown as {
+      name: string;
+      status: string;
+      stock: number;
+      store: { status: string } | null;
+    } | null;
+    if (!product) continue;
+    if (product.status !== "active" || product.store?.status !== "active" || product.stock < item.quantity) {
+      return {
+        error: `"${product.name}" não está mais disponível. Cancele este pedido e refaça a compra.`,
+      };
+    }
+  }
+
   const results: StorePaymentResult[] = [];
 
   for (const group of groups) {

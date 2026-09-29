@@ -179,6 +179,20 @@ export const shippingAddressSchema = z.object({
 
 export type ShippingAddressInput = z.infer<typeof shippingAddressSchema>;
 
+// ── Avaliações ───────────────────────────────────────────────────────────
+
+export const reviewSchema = z.object({
+  rating: z.number().int().min(1, "Dê uma nota de 1 a 5 estrelas").max(5, "Dê uma nota de 1 a 5 estrelas"),
+  comment: z
+    .string()
+    .trim()
+    .max(500, "Máximo de 500 caracteres")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type ReviewInput = z.infer<typeof reviewSchema>;
+
 export type SignInInput = z.infer<typeof signInSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type StoreInput = z.infer<typeof storeSchema>;

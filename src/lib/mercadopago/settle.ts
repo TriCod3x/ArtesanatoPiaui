@@ -134,11 +134,55 @@ export async function settlePayment(params: {
     });
   }
 
-  await admin
+  const { error: confirmError } = await admin
     .from("order_items")
     .update({ item_status: "confirmed" })
     .eq("order_id", params.orderId)
     .eq("store_id", params.storeId);
+
+  // O trigger handle_stock_on_order (banco) lança exceção se não houver
+  // estoque suficiente pra confirmar os itens — o supabase-js NUNCA lança
+  // nesse caso, só devolve {error}. Sem checar aqui, essa falha passava em
+  // silêncio: pagamento já marcado 'paid' e comissão já lançada acima, mas
+  // order_items nunca vira 'confirmed' e o pedido fica preso em 'pending'
+  // pra sempre (olhando só pra fora, parece que "nunca confirmou"). Não dá
+  // pra reverter o pagamento/comissão daqui (reembolso fica fora desta
+  // rodada) — o mínimo é não fingir que deu certo: loga, marca o pedido de
+  // forma visível e não dispara a logística de um item que não foi
+  // confirmado.
+  if (confirmError) {
+    console.error(
+      "[mercadopago][auditoria] pagamento aprovado mas order_items não confirmou — provável falta de estoque no trigger; pedido ficará preso em pending até revisão manual",
+      { orderId: params.orderId, storeId: params.storeId, paymentId: params.mpPayment.id, error: confirmError },
+    );
+
+    const { data: currentOrder } = await admin
+      .from("orders")
+      .select("notes")
+      .eq("id", params.orderId)
+      .maybeSingle();
+
+    const flag = `[ESTOQUE_CONFLITO] loja ${params.storeId} — pagamento ${params.mpPayment.id} aprovado em ${new Date().toISOString()} mas order_items não confirmou (${confirmError.message}). Revisar manualmente.`;
+
+    await admin
+      .from("orders")
+      .update({ notes: currentOrder?.notes ? `${currentOrder.notes}\n${flag}` : flag })
+      .eq("id", params.orderId);
+
+    const { data: admins } = await admin.from("profiles").select("id").eq("role", "admin");
+    if (admins && admins.length > 0) {
+      await admin.from("notifications").insert(
+        admins.map((a) => ({
+          user_id: a.id,
+          type: "estoque_conflito",
+          title: "Pedido precisa de reembolso manual",
+          message: `Pedido ${params.orderId.slice(0, 8)} (loja ${params.storeId.slice(0, 8)}) foi pago mas não confirmou por falta de estoque. Revisar e reembolsar manualmente.`,
+        })),
+      );
+    }
+
+    return { settled: true };
+  }
 
   // Logística automática assim que ESSA loja é paga — não espera as demais
   // lojas do carrinho (cada uma tem sua própria conta/etiqueta). Qual caminho

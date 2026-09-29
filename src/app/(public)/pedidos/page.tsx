@@ -7,32 +7,19 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { formatPrice } from "@/lib/utils";
 import { RelativeTime } from "@/components/shared/RelativeTime";
-import { PLACEHOLDER_PRODUCT_IMG, SHIPMENT_STATUS_LABEL, SHIPMENT_STATUS_CLASS } from "@/lib/constants";
+import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
+import { getBuyerOrderStatus, getBuyerOrderStatusLabel, BUYER_ORDER_STATUS_CLASS } from "@/lib/order-status";
+import { ReviewForm } from "@/components/orders/ReviewForm";
 import type { OrderStatus } from "@/types";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABEL: Record<string, string> = {
-  pending: "Aguardando pagamento",
-  confirmed: "Confirmado",
-  shipped: "Enviado",
-  delivered: "Entregue",
-  cancelled: "Cancelado",
-};
-
-const STATUS_STYLE: Record<string, string> = {
-  pending: "bg-amber/15 text-amber",
-  confirmed: "bg-capim/15 text-capim",
-  shipped: "bg-blue-500/15 text-blue-500",
-  delivered: "bg-green-600/15 text-green-600",
-  cancelled: "bg-destructive/15 text-destructive",
-};
 
 interface OrderItemRow {
   id: string;
   quantity: number;
   unit_price: number;
   subtotal: number;
+  item_status: string;
   product: { name: string; slug: string; images: { url: string; is_cover: boolean }[] } | null;
 }
 
@@ -67,7 +54,7 @@ export default async function PedidosPage() {
       `
       id, status, total_amount, created_at,
       items:order_items(
-        id, quantity, unit_price, subtotal,
+        id, quantity, unit_price, subtotal, item_status,
         product:products(name, slug, images:product_images(url, is_cover))
       ),
       shipments(store_id, service_name, status, tracking_code, store:stores(name))
@@ -77,6 +64,18 @@ export default async function PedidosPage() {
     .order("created_at", { ascending: false });
 
   const orders = (data ?? []) as unknown as OrderRow[];
+
+  const deliveredItemIds = orders
+    .flatMap((o) => o.items)
+    .filter((i) => i.item_status === "delivered")
+    .map((i) => i.id);
+
+  const { data: existingReviews } =
+    deliveredItemIds.length > 0
+      ? await supabase.from("reviews").select("order_item_id").in("order_item_id", deliveredItemIds)
+      : { data: [] as { order_item_id: string | null }[] };
+
+  const reviewedItemIds = new Set((existingReviews ?? []).map((r) => r.order_item_id));
 
   return (
     <>
@@ -133,10 +132,10 @@ export default async function PedidosPage() {
                     </div>
                     <span
                       className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                        STATUS_STYLE[order.status] ?? "bg-muted text-muted-foreground"
+                        BUYER_ORDER_STATUS_CLASS[getBuyerOrderStatus(order.status)]
                       }`}
                     >
-                      {STATUS_LABEL[order.status] ?? order.status}
+                      {getBuyerOrderStatusLabel(order.status)}
                     </span>
                   </div>
 
@@ -174,9 +173,14 @@ export default async function PedidosPage() {
                               {item.quantity} × {formatPrice(item.unit_price)}
                             </p>
                           </div>
-                          <span className="text-sm font-semibold text-dark dark:text-[#f5edd6]">
-                            {formatPrice(item.subtotal)}
-                          </span>
+                          <div className="text-right">
+                            <span className="text-sm font-semibold text-dark dark:text-[#f5edd6]">
+                              {formatPrice(item.subtotal)}
+                            </span>
+                            {item.item_status === "delivered" && !reviewedItemIds.has(item.id) && (
+                              <ReviewForm orderItemId={item.id} productName={item.product?.name ?? "produto"} />
+                            )}
+                          </div>
                         </li>
                       );
                     })}
@@ -197,13 +201,15 @@ export default async function PedidosPage() {
                               {shipment.tracking_code ? ` · ${shipment.tracking_code}` : ""}
                             </span>
                           </div>
-                          <span
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${
-                              SHIPMENT_STATUS_CLASS[shipment.status] ?? "bg-muted text-muted-foreground"
-                            }`}
-                          >
-                            {SHIPMENT_STATUS_LABEL[shipment.status] ?? shipment.status}
-                          </span>
+                          {order.status !== "pending" && (
+                            <span
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${
+                                BUYER_ORDER_STATUS_CLASS[getBuyerOrderStatus(order.status, shipment.status)]
+                              }`}
+                            >
+                              {getBuyerOrderStatusLabel(order.status, shipment.status)}
+                            </span>
+                          )}
                         </div>
                       ))}
                     </div>

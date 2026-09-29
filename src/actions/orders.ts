@@ -146,13 +146,10 @@ export async function createOrder(
     return { error: "Erro ao registrar o frete do pedido. Tente novamente." };
   }
 
-  for (const item of items) {
-    const product = productById.get(item.productId)!;
-    await admin
-      .from("products")
-      .update({ stock: product.stock - item.quantity })
-      .eq("id", product.id);
-  }
-
+  // O estoque não é decrementado aqui — o único decremento é o do trigger
+  // handle_stock_on_order, quando o pagamento confirma (order_items vira
+  // 'confirmed'). A checagem de `stock >= quantidade` lá em cima já bloqueia
+  // a criação do pedido sem estoque suficiente; entre a criação e a
+  // confirmação, o trigger é quem garante a última palavra.
   return { success: true, orderId: order.id as string };
 }

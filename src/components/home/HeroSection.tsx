@@ -2,7 +2,13 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Store } from "lucide-react";
 
-export function HeroSection() {
+export interface HeroStats {
+  storesCount: number;
+  productsCount: number;
+  citiesCount: number;
+}
+
+export function HeroSection({ stats }: { stats: HeroStats | null }) {
   return (
     <section className="relative overflow-hidden" style={{ minHeight: "520px" }}>
       {/* Background image */}
@@ -51,19 +57,22 @@ export function HeroSection() {
           </Link>
         </div>
 
-        {/* Stats */}
-        <div className="mt-16 grid grid-cols-3 gap-8 text-center">
-          {[
-            { value: "500+", label: "Artesãos" },
-            { value: "2.000+", label: "Produtos" },
-            { value: "15+", label: "Cidades" },
-          ].map((stat) => (
-            <div key={stat.label}>
-              <p className="font-display text-3xl font-black text-terracota drop-shadow">{stat.value}</p>
-              <p className="text-white/70 text-sm mt-1">{stat.label}</p>
-            </div>
-          ))}
-        </div>
+        {/* Stats — números reais; o bloco some enquanto a base for pequena
+            demais pra transmitir confiança (ver MIN_ACTIVE_PRODUCTS_FOR_HOME_STATS) */}
+        {stats && (
+          <div className="mt-16 grid grid-cols-3 gap-8 text-center">
+            {[
+              { value: stats.storesCount, label: "Artesãos" },
+              { value: stats.productsCount, label: "Produtos" },
+              { value: stats.citiesCount, label: "Cidades" },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <p className="font-display text-3xl font-black text-terracota drop-shadow">{stat.value}</p>
+                <p className="text-white/70 text-sm mt-1">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

@@ -35,6 +35,13 @@ export const CITIES_PI = [
 
 export const MAX_PRODUCT_IMAGES = 5;
 
+/**
+ * Abaixo disso o bloco de números da home ("500+ artesãos...") fica
+ * escondido — poucos produtos reais deixa os números pequenos/estranhos em
+ * vez de transmitir confiança.
+ */
+export const MIN_ACTIVE_PRODUCTS_FOR_HOME_STATS = 20;
+
 export const IDENTITY_DOCUMENTS_BUCKET = "identity-documents";
 export const SIGNED_URL_TTL = 60 * 5; // 5 minutos
 

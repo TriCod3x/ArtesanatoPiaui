@@ -47,6 +47,34 @@ export default async function DashboardPage() {
 
   const hasProducts = (productCount ?? 0) > 0;
 
+  // "Pedidos pendentes" não contava nada de verdade — era um placeholder
+  // fixo em 0. Itens 'confirmed' (pagos, ainda não entregues) são os que o
+  // vendedor precisa despachar, por isso o rótulo virou "Pedidos para
+  // enviar" em vez de mudar o que é contado.
+  const { count: ordersToShipCount } = await supabase
+    .from("order_items")
+    .select("*", { count: "exact", head: true })
+    .eq("store_id", store.id)
+    .eq("item_status", "confirmed");
+
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const monthLabel = now.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+
+  // Idem "Vendas do mês" — também era um placeholder fixo. Soma o subtotal
+  // dos itens pagos (confirmed/delivered) deste mês; frete não entra (não é
+  // receita da loja). Mostra o valor LÍQUIDO (já descontada a comissão da
+  // loja) pra bater com o que a artesã de fato recebe.
+  const { data: monthItems } = await supabase
+    .from("order_items")
+    .select("subtotal, item_status, created_at")
+    .eq("store_id", store.id)
+    .in("item_status", ["confirmed", "delivered"])
+    .gte("created_at", monthStart);
+
+  const monthSalesGross = (monthItems ?? []).reduce((sum, i) => sum + i.subtotal, 0);
+  const monthSalesNet = monthSalesGross * (1 - store.commission_rate / 100);
+
   return (
     <main className="max-w-7xl mx-auto px-4 py-10">
       {/* Header */}
@@ -157,15 +185,15 @@ export default async function DashboardPage() {
           },
           {
             icon: ShoppingBag,
-            label: "Pedidos pendentes",
-            value: 0,
+            label: "Pedidos para enviar",
+            value: ordersToShipCount ?? 0,
             color: "text-capim",
             bg: "bg-capim/10",
           },
           {
             icon: DollarSign,
-            label: "Vendas do mês",
-            value: formatPrice(0),
+            label: `Vendas líquidas de ${monthLabel} (após comissão de ${store.commission_rate}%)`,
+            value: formatPrice(monthSalesNet),
             color: "text-amber",
             bg: "bg-amber/10",
           },
