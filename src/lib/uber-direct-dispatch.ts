@@ -66,7 +66,7 @@ async function runExpressDispatch(orderId: string, storeId: string): Promise<voi
 
   const { data: items } = await admin
     .from("order_items")
-    .select("quantity, unit_price, product:products(name)")
+    .select("quantity, unit_price, product:products(name, height_cm, width_cm, length_cm, weight_grams)")
     .eq("order_id", orderId)
     .eq("store_id", storeId);
   if (!items || items.length === 0) return;
@@ -94,11 +94,32 @@ async function runExpressDispatch(orderId: string, storeId: string): Promise<voi
   };
 
   const manifest: DeliveryManifestItem[] = items.map((item) => {
-    const product = item.product as unknown as { name: string } | null;
+    const product = item.product as unknown as {
+      name: string;
+      height_cm: number | null;
+      width_cm: number | null;
+      length_cm: number | null;
+      weight_grams: number | null;
+    } | null;
+
+    // Dimensões e peso só vão juntos e completos; produto sem eles segue como
+    // "small" sem dimensões (a Uber assume o pacote pequeno padrão).
+    const hasPackage = !!(product?.height_cm && product.width_cm && product.length_cm && product.weight_grams);
+
     return {
       name: product?.name ?? "Produto",
       quantity: item.quantity,
       priceCents: Math.round(item.unit_price * 100),
+      ...(hasPackage
+        ? {
+            dimensionsCm: {
+              length: Math.ceil(product!.length_cm!),
+              height: Math.ceil(product!.height_cm!),
+              depth: Math.ceil(product!.width_cm!),
+            },
+            weightGrams: Math.round(product!.weight_grams!),
+          }
+        : {}),
     };
   });
 

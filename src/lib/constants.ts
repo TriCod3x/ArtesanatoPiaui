@@ -133,6 +133,11 @@ export const UBER_DIRECT_SERVICE_ID = "uber-direct";
 // antes de pedir cotação; quem decide cobertura de fato é a Uber.
 export const EXPRESS_DELIVERY_MAX_KM = 30;
 
+// Peso máximo, em gramas, de UM item pra oferecer a entrega expressa. O sandbox
+// da Uber Direct aceitou 23 kg e recusou 24 kg por item; o limite de produção
+// não está confirmado (a doc não publica) — perguntar ao suporte da Uber.
+export const EXPRESS_MAX_ITEM_WEIGHT_GRAMS = 20_000;
+
 // O marketplace só aceita LOJAS com endereço no Piauí. Não vale pra conta de
 // comprador: comprador de qualquer UF compra normalmente.
 export const STORE_REQUIRED_STATE = "PI";

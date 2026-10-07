@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateShipping } from "@/lib/melhorenvio/client";
 import { getDeliveryQuote, type UberDirectAddress } from "@/lib/uber-direct";
 import { getStoreCredentialsByStoreIds } from "@/lib/store-credentials";
-import { EXPRESS_DELIVERY_MAX_KM, UBER_DIRECT_SERVICE_ID } from "@/lib/constants";
+import { EXPRESS_DELIVERY_MAX_KM, EXPRESS_MAX_ITEM_WEIGHT_GRAMS, UBER_DIRECT_SERVICE_ID } from "@/lib/constants";
+import { getMobilePhoneError } from "@/lib/phone";
 import { geocodeAddress, haversineDistanceKm, type Coordinates } from "@/lib/geocoding";
 import { onlyDigits } from "@/lib/utils";
 import type { ShippingOption } from "@/types";
@@ -79,6 +80,31 @@ function isWithinExpressRadius(origin: StoreOrigin, destinationCoordinates: Coor
 }
 
 /**
+ * Motivo de a entrega expressa NÃO poder ser oferecida pra essa loja, ou null
+ * se pode. Cobre o que a Uber recusa no despacho (depois do pagamento): telefone
+ * de retirada inválido e item pesado demais.
+ */
+function getExpressBlocker(whatsapp: string | undefined, maxItemWeightGrams: number): string | null {
+  if (!whatsapp) return "loja sem WhatsApp em store_contacts";
+  const phoneError = getMobilePhoneError(whatsapp);
+  if (phoneError) return `WhatsApp da loja inválido (${phoneError})`;
+  if (maxItemWeightGrams > EXPRESS_MAX_ITEM_WEIGHT_GRAMS) {
+    return `item de ${maxItemWeightGrams} g acima do limite de ${EXPRESS_MAX_ITEM_WEIGHT_GRAMS} g`;
+  }
+  return null;
+}
+
+/** Minutos de agora até `iso`, arredondados pra 5 (mínimo 5). Null se a data não vier ou não parsear. */
+function minutesUntilRounded(iso: string | null): number | null {
+  if (!iso) return null;
+  const eta = new Date(iso).getTime();
+  if (Number.isNaN(eta)) return null;
+
+  const minutes = (eta - Date.now()) / 60_000;
+  return Math.max(5, Math.round(minutes / 5) * 5);
+}
+
+/**
  * Cota a entrega expressa (Uber Direct) da loja até o comprador. Devolve null
  * — em vez de propagar erro — quando a loja não tem endereço completo ou
  * quando a Uber recusa a cotação (fora de cobertura, credencial ausente etc.):
@@ -131,6 +157,7 @@ async function quoteExpressDelivery(
       price: quote.fee / 100,
       deliveryTimeDays: 0,
       deliveryEtaISO: quote.dropoffEta,
+      etaMinutes: minutesUntilRounded(quote.dropoffEta),
     };
   } catch (err) {
     console.error(`[uber-direct] cotação expressa indisponível para store ${storeId}:`, err);
@@ -181,6 +208,8 @@ export async function calculateShippingForCart(
       accessToken: string | null;
       products: { id: string; width: number; height: number; length: number; weight: number; insurance_value: number; quantity: number }[];
       missingDimensions: boolean;
+      /** Maior peso unitário (g) entre os itens da loja no carrinho — o limite da Uber é por item. */
+      maxItemWeightGrams: number;
     }
   >();
 
@@ -211,10 +240,12 @@ export async function calculateShippingForCart(
         accessToken: null,
         products: [],
         missingDimensions: false,
+        maxItemWeightGrams: 0,
       });
     }
     const group = groups.get(store.id)!;
     const quantity = quantityByProduct.get(product.id) ?? 1;
+    group.maxItemWeightGrams = Math.max(group.maxItemWeightGrams, product.weight_grams ?? 0);
 
     if (!product.weight_grams || !product.height_cm || !product.width_cm || !product.length_cm) {
       group.missingDimensions = true;
@@ -231,6 +262,15 @@ export async function calculateShippingForCart(
       quantity,
     });
   }
+
+  // Pré-checagem da entrega expressa: o despacho roda DEPOIS do pagamento, então
+  // o que sabemos que a Uber vai recusar tem que tirar a opção já na cotação.
+  const { data: whatsappContacts } = await admin
+    .from("store_contacts")
+    .select("store_id, value")
+    .eq("type", "whatsapp")
+    .in("store_id", [...groups.keys()]);
+  const whatsappByStore = new Map((whatsappContacts ?? []).map((c) => [c.store_id, c.value]));
 
   const credentials = await getStoreCredentialsByStoreIds([...groups.keys()], "melhorenvio");
   for (const [storeId, group] of groups) {
@@ -263,8 +303,13 @@ export async function calculateShippingForCart(
     // 1) Entrega expressa — só pra loja dentro do raio. Entra primeiro na
     // lista por ser a opção mais rápida.
     if (isWithinExpressRadius(group.origin, destinationCoordinates)) {
-      const express = await quoteExpressDelivery(storeId, group.storeName, group.origin, destination);
-      if (express) options.push(express);
+      const expressBlocker = getExpressBlocker(whatsappByStore.get(storeId), group.maxItemWeightGrams);
+      if (expressBlocker) {
+        console.warn(`[uber-direct][auditoria] entrega expressa omitida para store ${storeId}: ${expressBlocker}`);
+      } else {
+        const express = await quoteExpressDelivery(storeId, group.storeName, group.origin, destination);
+        if (express) options.push(express);
+      }
     }
 
     // 2) Correios/Melhor Envio — oferecido sempre, independente da cidade.

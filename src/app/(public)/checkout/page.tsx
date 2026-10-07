@@ -12,6 +12,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { formatPrice, formatCPF, isValidCPF, formatCEP, onlyDigits } from "@/lib/utils";
 import { BR_STATES } from "@/lib/br-states";
 import { shippingAddressSchema, type ShippingAddressInput } from "@/lib/validations";
+import { getMobilePhoneError } from "@/lib/phone";
 import { fetchAddressByCep } from "@/lib/viacep";
 import { createOrder, type SelectedShippingInput } from "@/actions/orders";
 import { calculateShippingForCart, type StoreShippingQuote } from "@/actions/shipping";
@@ -43,17 +44,12 @@ const fieldClass =
 const cardClass = "bg-white dark:bg-[#2a1e0f] border border-[#8a6a4a]/40 shadow-sm p-5";
 
 /**
- * A Uber Direct devolve previsão de entrega como timestamp (entrega no mesmo
- * dia), não em dias como o Melhor Envio.
+ * Prazo da entrega expressa em minutos, não em horário de relógio: o motorista
+ * só é chamado depois do pagamento, então o tempo conta da confirmação.
  */
-function formatDeliveryEta(iso: string | null | undefined): string {
-  if (!iso) return "entrega hoje";
-  const eta = new Date(iso);
-  if (Number.isNaN(eta.getTime())) return "entrega hoje";
-
-  const hora = eta.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-  const isHoje = eta.toDateString() === new Date().toDateString();
-  return isHoje ? `hoje às ${hora}` : `${eta.toLocaleDateString("pt-BR")} às ${hora}`;
+function formatExpressEta(etaMinutes: number | null | undefined): string {
+  if (!etaMinutes) return "entrega no mesmo dia, após a confirmação do pagamento";
+  return `chega em cerca de ${etaMinutes} min após a confirmação do pagamento`;
 }
 
 function CheckoutContent() {
@@ -187,6 +183,8 @@ function CheckoutContent() {
   const grandTotal = total + shippingTotal;
 
   const addressValid = shippingAddressSchema.safeParse(address).success;
+  // Só mostra o erro depois que o comprador digitou algo — campo vazio não deve ficar vermelho.
+  const phoneError = address.recipient_phone.trim() ? getMobilePhoneError(address.recipient_phone) : null;
   const shippingSelectedForAll = !!quotes && groups.every((g) => !!selectedShipping[g.storeId]);
   const currentStep: CheckoutStep = !addressValid ? "endereco" : !shippingSelectedForAll ? "entrega" : "pagamento";
   const payDisabledReason = !addressValid
@@ -418,8 +416,11 @@ function CheckoutContent() {
                         value={address.recipient_phone}
                         onChange={(e) => setAddress((a) => ({ ...a, recipient_phone: e.target.value }))}
                         placeholder="(00) 00000-0000"
+                        inputMode="tel"
+                        aria-invalid={phoneError ? true : undefined}
                         className={fieldClass}
                       />
+                      {phoneError && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{phoneError}</p>}
                     </div>
                     <div>
                       <label className={labelClass}>CEP</label>
@@ -580,7 +581,7 @@ function CheckoutContent() {
                                         {opt.carrier === "uber_direct" ? (
                                           <>
                                             <Zap size={12} className="inline mb-0.5 text-terracota" /> {opt.serviceName} (
-                                            {opt.companyName}) · {formatDeliveryEta(opt.deliveryEtaISO)}
+                                            {opt.companyName}) · {formatExpressEta(opt.etaMinutes)}
                                           </>
                                         ) : (
                                           <>

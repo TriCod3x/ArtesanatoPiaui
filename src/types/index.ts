@@ -105,6 +105,10 @@ export interface ShippingOption {
   deliveryTimeDays: number
   // Só Uber Direct: previsão de entrega (ISO). Melhor Envio usa deliveryTimeDays.
   deliveryEtaISO?: string | null
+  // Só Uber Direct: minutos até a chegada (arredondado pra 5) contados da cotação.
+  // É o que o checkout mostra — o motorista só é chamado depois do pagamento,
+  // então um horário de relógio seria promessa que a gente não controla.
+  etaMinutes?: number | null
   error?: string
 }
 

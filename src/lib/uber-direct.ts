@@ -3,6 +3,7 @@
 // pela rota de teste manual em src/app/api/dev/uber-direct-quote.
 
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { toE164Brazil } from "@/lib/phone";
 
 const OAUTH_URL = "https://login.uber.com/oauth/v2/token";
 const API_BASE = "https://api.uber.com";
@@ -168,6 +169,34 @@ export interface DeliveryManifestItem {
   quantity: number;
   /** Valor unitário em CENTAVOS (a Uber trabalha em centavos, como no fee). */
   priceCents?: number;
+  /**
+   * Dimensões e peso reais do item (cm / gramas). Sem eles o item segue como
+   * "small" sem dimensões — a Uber assume um pacote pequeno padrão.
+   */
+  dimensionsCm?: { length: number; height: number; depth: number };
+  weightGrams?: number;
+}
+
+export type UberItemSize = "small" | "medium" | "large" | "xlarge";
+
+/**
+ * Escolhe o `size` do item a partir das dimensões. A Uber só define os
+ * tamanhos em termos qualitativos (small = uma mão, medium = bolsa, large =
+ * duas mãos, xlarge = várias viagens ao veículo) e NÃO publica limites
+ * numéricos. Com `dimensions` no manifesto, o sandbox ignora o size enviado e
+ * recalcula o dele a partir do volume (medido: 9 L small, 27 L medium, 36 L e
+ * 54 L large, 80 L+ xlarge; o peso não entra). Os cortes abaixo são uma
+ * aproximação desses pontos — o size que vale é o que a Uber devolve.
+ */
+export function pickItemSize(item: Pick<DeliveryManifestItem, "dimensionsCm">): UberItemSize {
+  const dims = item.dimensionsCm;
+  if (!dims) return "small";
+
+  const volumeCm3 = dims.length * dims.height * dims.depth;
+  if (volumeCm3 <= 18_000) return "small";
+  if (volumeCm3 <= 32_000) return "medium";
+  if (volumeCm3 <= 64_000) return "large";
+  return "xlarge";
 }
 
 export interface CreatedDelivery {
@@ -217,15 +246,18 @@ export async function createDelivery(
       quote_id: quoteId,
       pickup_address: JSON.stringify(pickupAddress),
       pickup_name: recipientInfo.pickupName,
-      pickup_phone_number: recipientInfo.pickupPhone,
+      pickup_phone_number: toE164Brazil(recipientInfo.pickupPhone),
       dropoff_address: JSON.stringify(dropoffAddress),
       dropoff_name: recipientInfo.dropoffName,
-      dropoff_phone_number: recipientInfo.dropoffPhone,
+      dropoff_phone_number: toE164Brazil(recipientInfo.dropoffPhone),
       ...(recipientInfo.dropoffNotes ? { dropoff_notes: recipientInfo.dropoffNotes } : {}),
       manifest_items: orderItemInfo.map((item) => ({
         name: item.name,
         quantity: item.quantity,
-        size: "small",
+        size: pickItemSize(item),
+        ...(item.dimensionsCm && item.weightGrams
+          ? { dimensions: item.dimensionsCm, weight: item.weightGrams }
+          : {}),
         ...(item.priceCents !== undefined ? { price: item.priceCents } : {}),
       })),
       ...(externalId ? { external_id: externalId } : {}),

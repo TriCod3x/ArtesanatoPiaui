@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { isValidCPF, isValidCNPJ, onlyDigits } from "@/lib/utils";
 import { STORE_REQUIRED_STATE } from "@/lib/constants";
+import { getMobilePhoneError } from "@/lib/phone";
 
 export const signInSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -21,7 +22,12 @@ export const storeSchema = z.object({
   description: z.string().min(20, "Descrição deve ter no mínimo 20 caracteres"),
   city: z.string().min(2, "Cidade obrigatória"),
   state: z.string().min(2),
-  whatsapp: z.string().min(10, "WhatsApp inválido"),
+  // O WhatsApp da loja vira o telefone de retirada da Uber Direct, então segue
+  // a mesma regra de celular do comprador.
+  whatsapp: z.string().trim().superRefine((value, ctx) => {
+    const message = getMobilePhoneError(value);
+    if (message) ctx.addIssue({ code: "custom", message: `WhatsApp inválido — ${message.charAt(0).toLowerCase()}${message.slice(1)}` });
+  }),
   instagram: z.string().optional(),
   logo_url: z.string().optional(),
   banner_url: z.string().optional(),
@@ -160,7 +166,13 @@ export type SubmitSellerRequirementsInput = z.infer<
 
 export const shippingAddressSchema = z.object({
   recipient_name: z.string().trim().min(3, "Informe o nome do destinatário"),
-  recipient_phone: z.string().trim().min(10, "Telefone inválido"),
+  recipient_phone: z
+    .string()
+    .trim()
+    .superRefine((value, ctx) => {
+      const message = getMobilePhoneError(value);
+      if (message) ctx.addIssue({ code: "custom", message });
+    }),
   cep: z
     .string()
     .trim()

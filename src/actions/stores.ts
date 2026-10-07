@@ -11,6 +11,7 @@ import {
 } from "@/lib/validations";
 import { COMMISSION_RATE, IDENTITY_DOCUMENTS_BUCKET, STORE_REQUIRED_STATE } from "@/lib/constants";
 import { geocodeAddress } from "@/lib/geocoding";
+import { getMobilePhoneError } from "@/lib/phone";
 import { onlyDigits, stripPhone } from "@/lib/utils";
 
 const DOCUMENT_EXT_BY_TYPE: Record<string, string> = {
@@ -19,11 +20,21 @@ const DOCUMENT_EXT_BY_TYPE: Record<string, string> = {
   "application/pdf": "pdf",
 };
 
+// Mesma regra do storeSchema (formulário): o WhatsApp da loja vira o telefone de
+// retirada da Uber Direct. Repetida aqui porque a action pode ser chamada sem o form.
+function getWhatsAppError(value: string | undefined): string | null {
+  const message = getMobilePhoneError(value ?? "");
+  return message ? `WhatsApp inválido — ${message.charAt(0).toLowerCase()}${message.slice(1)}` : null;
+}
+
 export async function createStore(data: StoreInput) {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Você precisa estar logado." };
+
+  const whatsappError = getWhatsAppError(data.whatsapp);
+  if (whatsappError) return { error: whatsappError };
 
   // Restrição de marketplace: loja só no Piauí. Vale só pra loja — conta de
   // comprador não tem restrição de UF.
@@ -150,6 +161,12 @@ export async function updateStore(
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Você precisa estar logado." };
+
+  // No update o WhatsApp é opcional (só valida se veio), mas o que vier tem que prestar.
+  if (data.whatsapp !== undefined) {
+    const whatsappError = getWhatsAppError(data.whatsapp);
+    if (whatsappError) return { error: whatsappError };
+  }
 
   const { data: existing } = await supabase
     .from("stores")
