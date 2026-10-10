@@ -4,6 +4,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { shippingAddressSchema, type ShippingAddressInput } from "@/lib/validations";
 import { onlyDigits } from "@/lib/utils";
+import { quoteShippingForCart, type StoreShippingQuote } from "@/lib/shipping-quotes";
+import { matchSelectionToQuotes, validateShippingSelection } from "@/lib/shipping-validation";
 import type { ShippingCarrier } from "@/types";
 
 export interface CheckoutItemInput {
@@ -11,6 +13,13 @@ export interface CheckoutItemInput {
   quantity: number;
 }
 
+/**
+ * O que o cliente manda sobre o frete. SÓ storeId + carrier + serviceId
+ * identificam a escolha; `price` é o que o comprador viu na tela (usado pra
+ * detectar aumento). serviceName/deliveryTimeDays são aceitos por
+ * compatibilidade com o checkout, mas NUNCA gravados: nome, prazo e preço do
+ * shipment vêm da cotação refeita no servidor.
+ */
 export interface SelectedShippingInput {
   storeId: string;
   /** Quem entrega — decide o que roda quando o pagamento confirma. */
@@ -21,12 +30,25 @@ export interface SelectedShippingInput {
   deliveryTimeDays: number;
 }
 
+/** Erro de frete que o comprador pode resolver escolhendo de novo, com as opções atualizadas. */
+export interface ShippingChangedError {
+  error: string;
+  shippingChanged: true;
+  quotes: StoreShippingQuote[];
+}
+
 /**
  * Cria o pedido (orders + order_items, status pending) revalidando preço e
  * estoque no servidor — nunca confia no total calculado no carrinho (client).
  * Também grava o endereço de entrega e cria um `shipments` (pending) por
  * loja com o frete escolhido — a etiqueta em si só é comprada depois que o
  * pagamento é confirmado (ver lib/mercadopago/settle.ts).
+ *
+ * O frete NUNCA é confiado ao cliente: o servidor exige exatamente uma opção
+ * por loja do carrinho, recota cada loja com a mesma lógica do checkout
+ * (horário, pausa, raio, WhatsApp, peso) usando o endereço do próprio pedido, e
+ * grava preço/prazo/nome da cotação nova. total_amount também é calculado só
+ * aqui. Ver lib/shipping-validation.ts.
  * Usa o client de admin pro insert porque order_items não tem policy de
  * INSERT (o carrinho é multi-loja; a autorização é feita aqui em código,
  * igual ao padrão já usado em submitSellerRequirements/approveStore).
@@ -35,7 +57,7 @@ export async function createOrder(
   items: CheckoutItemInput[],
   shippingAddress: ShippingAddressInput,
   selectedShipping: SelectedShippingInput[],
-) {
+): Promise<{ error: string } | ShippingChangedError | { success: true; orderId: string }> {
   if (items.length === 0) return { error: "Carrinho vazio." };
 
   const addressParsed = shippingAddressSchema.safeParse(shippingAddress);
@@ -88,15 +110,41 @@ export async function createOrder(
   });
 
   const storeIds = [...new Set(orderItems.map((i) => i.store_id))];
-  const shippingByStore = new Map(selectedShipping.map((s) => [s.storeId, s]));
-  for (const storeId of storeIds) {
-    if (!shippingByStore.has(storeId)) {
-      return { error: "Selecione uma opção de frete para todas as lojas do carrinho." };
-    }
+  // Frete, etapa 1 (estrutural): uma opção por loja do carrinho, nenhuma de
+  // fora, nenhuma duplicada, preço mostrado > 0.
+  const structural = validateShippingSelection(storeIds, selectedShipping);
+  if (!structural.ok) return { error: structural.message };
+
+  // Frete, etapa 2: recota no servidor com o endereço do PRÓPRIO pedido e
+  // confronta a escolha. Falha na cotação (Melhor Envio/Uber fora do ar) nunca
+  // cai pro valor do cliente — não cria o pedido.
+  const quoteResult = await quoteShippingForCart(
+    {
+      cep: address.cep,
+      city: address.address_city,
+      state: address.address_state,
+      street: address.address_street,
+      number: address.address_number,
+      neighborhood: address.address_neighborhood,
+    },
+    items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+  );
+  if ("error" in quoteResult) {
+    console.error("[orders][auditoria] cotação de frete do servidor falhou no createOrder:", quoteResult.error);
+    return { error: "Não foi possível confirmar o frete agora. Tente novamente em instantes." };
   }
 
+  const shippingCheck = matchSelectionToQuotes(selectedShipping, quoteResult.quotes);
+  if (!shippingCheck.ok) {
+    if (shippingCheck.code === "option_unavailable" || shippingCheck.code === "price_changed") {
+      return { error: shippingCheck.message, shippingChanged: true, quotes: quoteResult.quotes };
+    }
+    return { error: shippingCheck.message };
+  }
+  const validatedShipping = shippingCheck.shipments;
+
   const productsTotal = orderItems.reduce((sum, i) => sum + i.subtotal, 0);
-  const shippingTotal = selectedShipping.reduce((sum, s) => sum + s.price, 0);
+  const shippingTotal = validatedShipping.reduce((sum, s) => sum + s.price, 0);
 
   const { data: order, error: orderError } = await admin
     .from("orders")
@@ -128,8 +176,9 @@ export async function createOrder(
     return { error: "Erro ao criar os itens do pedido. Tente novamente." };
   }
 
+  // Tudo aqui vem da cotação do servidor (validatedShipping), nunca do cliente.
   const { error: shipmentsError } = await admin.from("shipments").insert(
-    selectedShipping.map((s) => ({
+    validatedShipping.map((s) => ({
       order_id: order.id,
       store_id: s.storeId,
       carrier: s.carrier,

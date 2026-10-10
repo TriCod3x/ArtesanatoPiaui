@@ -231,6 +231,21 @@ function CheckoutContent() {
         selected,
       );
       if ("error" in orderResult) {
+        // O servidor recotou o frete e a escolha não vale mais (preço subiu,
+        // loja fechou…): mostra as opções atualizadas pro comprador decidir.
+        if ("shippingChanged" in orderResult) {
+          setQuotes(orderResult.quotes);
+          setSelectedShipping((current) => {
+            const next: Record<string, ShippingOption> = {};
+            for (const [storeId, chosen] of Object.entries(current)) {
+              const refreshed = orderResult.quotes
+                .find((q) => q.storeId === storeId)
+                ?.options.find((o) => o.carrier === chosen.carrier && o.serviceId === chosen.serviceId);
+              if (refreshed) next[storeId] = refreshed;
+            }
+            return next;
+          });
+        }
         toast.error(orderResult.error);
         setSubmitting(false);
         return;

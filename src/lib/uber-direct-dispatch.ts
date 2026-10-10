@@ -109,6 +109,45 @@ async function notifyAdmins(type: string, title: string, message: string): Promi
   }
 }
 
+/**
+ * Notificação de auditoria pro admin quando o despacho falha de forma
+ * DEFINITIVA e o fallback não resolve (a liberação volta pra loja). Uma por
+ * shipment por falha: o texto carrega o id curto do shipment e, antes de
+ * inserir, procura uma notificação igual dos últimos 10 min — se o mesmo
+ * despacho for processado duas vezes (reentrega, clique duplicado que escapou
+ * da reivindicação) não gera duplicata. Nunca lança.
+ */
+async function notifyDispatchFailure(params: {
+  shipmentId: string;
+  orderId: string;
+  storeId: string;
+  reason: string;
+}): Promise<void> {
+  const admin = createAdminClient();
+  const type = "despacho_expresso_falhou";
+  const shortReason = params.reason.replace(/\s+/g, " ").trim().slice(0, 160);
+  const message =
+    "Envio " + params.shipmentId.slice(0, 8) + " (pedido " + params.orderId.slice(0, 8) +
+    ", loja " + params.storeId.slice(0, 8) + "): " + shortReason +
+    ". A retirada voltou pra loja tentar de novo.";
+
+  try {
+    const cutoff = new Date(Date.now() - 10 * 60_000).toISOString();
+    const { data: existing } = await admin
+      .from("notifications")
+      .select("id")
+      .eq("type", type)
+      .eq("message", message)
+      .gte("created_at", cutoff)
+      .limit(1);
+    if (existing && existing.length > 0) return;
+
+    await notifyAdmins(type, "Despacho da entrega expressa falhou", message);
+  } catch (err) {
+    console.error("[uber-direct][auditoria] falha ao registrar notificação de despacho", { type }, err);
+  }
+}
+
 async function runExpressDispatch(orderId: string, storeId: string): Promise<ExpressDispatchOutcome> {
   const admin = createAdminClient();
 
@@ -421,6 +460,14 @@ async function handleDispatchFailure(params: {
       params.shipmentId,
       "Entrega expressa falhou (" + detail + "). Sem alternativa do Melhor Envio dentro do frete ja pago — retirada devolvida a loja pra nova tentativa.",
     );
+    if (reset) {
+      await notifyDispatchFailure({
+        shipmentId: params.shipmentId,
+        orderId: params.orderId,
+        storeId: params.storeId,
+        reason: detail,
+      });
+    }
     return reset ? { kind: "retry_later" } : { kind: "unconfirmed" };
   }
 
@@ -457,6 +504,14 @@ async function handleDispatchFailure(params: {
       params.shipmentId,
       "Entrega expressa falhou (" + detail + ") e a troca pro Melhor Envio nao gravou — retirada devolvida a loja.",
     );
+    if (reset) {
+      await notifyDispatchFailure({
+        shipmentId: params.shipmentId,
+        orderId: params.orderId,
+        storeId: params.storeId,
+        reason: detail,
+      });
+    }
     return reset ? { kind: "retry_later" } : { kind: "unconfirmed" };
   }
 
