@@ -13,6 +13,7 @@ import { COMMISSION_RATE, IDENTITY_DOCUMENTS_BUCKET, STORE_REQUIRED_STATE } from
 import { geocodeAddress } from "@/lib/geocoding";
 import { getMobilePhoneError } from "@/lib/phone";
 import { onlyDigits, stripPhone } from "@/lib/utils";
+import type { SubmitSellerRequirementsData } from "@/types/actions";
 
 const DOCUMENT_EXT_BY_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -283,20 +284,6 @@ export async function uploadStoreBanner(storeId: string, file: File) {
 }
 
 // ── Cadastro de vendedor (KYC-lite) ─────────────────────────────────────────
-
-export interface SubmitSellerRequirementsData {
-  cpf: string;
-  cnpj?: string;
-  cep: string;
-  address_street: string;
-  address_number: string;
-  address_complement?: string;
-  address_neighborhood: string;
-  address_city: string;
-  address_state: string;
-  accept_terms: boolean;
-  document: File;
-}
 
 /**
  * Recebe os dados do KYC-lite do vendedor:

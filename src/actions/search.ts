@@ -1,16 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-
-export interface ProductSearchResult {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  categoryName: string | null;
-  storeName: string | null;
-  imageUrl: string | null;
-}
+import type { ProductSearchResult } from "@/types/actions";
 
 const RESULT_LIMIT = 8;
 const MIN_QUERY_LENGTH = 2;

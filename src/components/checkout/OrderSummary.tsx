@@ -3,7 +3,7 @@ import { Store } from "lucide-react";
 import { formatPrice } from "@/lib/utils";
 import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import type { CartItem, ShippingOption } from "@/types";
-import type { StoreShippingQuote } from "@/actions/shipping";
+import type { StoreShippingQuote } from "@/lib/shipping-quotes";
 
 export interface OrderSummaryGroup {
   storeId: string;

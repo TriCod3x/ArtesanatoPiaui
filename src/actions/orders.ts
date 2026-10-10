@@ -4,38 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { shippingAddressSchema, type ShippingAddressInput } from "@/lib/validations";
 import { onlyDigits } from "@/lib/utils";
-import { quoteShippingForCart, type StoreShippingQuote } from "@/lib/shipping-quotes";
+import { quoteShippingForCart } from "@/lib/shipping-quotes";
 import { matchSelectionToQuotes, validateShippingSelection } from "@/lib/shipping-validation";
-import type { ShippingCarrier } from "@/types";
-
-export interface CheckoutItemInput {
-  productId: string;
-  quantity: number;
-}
-
-/**
- * O que o cliente manda sobre o frete. SÓ storeId + carrier + serviceId
- * identificam a escolha; `price` é o que o comprador viu na tela (usado pra
- * detectar aumento). serviceName/deliveryTimeDays são aceitos por
- * compatibilidade com o checkout, mas NUNCA gravados: nome, prazo e preço do
- * shipment vêm da cotação refeita no servidor.
- */
-export interface SelectedShippingInput {
-  storeId: string;
-  /** Quem entrega — decide o que roda quando o pagamento confirma. */
-  carrier: ShippingCarrier;
-  serviceId: string;
-  serviceName: string;
-  price: number;
-  deliveryTimeDays: number;
-}
-
-/** Erro de frete que o comprador pode resolver escolhendo de novo, com as opções atualizadas. */
-export interface ShippingChangedError {
-  error: string;
-  shippingChanged: true;
-  quotes: StoreShippingQuote[];
-}
+import type { CheckoutItemInput, SelectedShippingInput, ShippingChangedError } from "@/types/actions";
 
 /**
  * Cria o pedido (orders + order_items, status pending) revalidando preço e

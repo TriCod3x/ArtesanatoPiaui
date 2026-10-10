@@ -7,7 +7,10 @@ import type {
   StoreShippingQuote,
 } from "@/lib/shipping-quotes";
 
-export type { ShippingDestinationInput, ShippingItemInput, StoreShippingQuote };
+// ATENÇÃO: arquivo "use server" — exporta SOMENTE funções async. Nada de
+// `export type { ... }`, `export *` ou constantes: o Next registra as exports
+// em runtime e uma export de tipo vira ReferenceError em module evaluation.
+// Quem precisa dos tipos importa de "@/lib/shipping-quotes".
 
 /**
  * Cotação de frete POR LOJA para o checkout. A lógica (raio, horário, peso,

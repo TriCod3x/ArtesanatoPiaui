@@ -4,10 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchExpressDelivery } from "@/lib/uber-direct-dispatch";
-
-export type ReleaseExpressPickupResult =
-  | { error: string }
-  | { success: true; alreadyReleased?: boolean; fallbackToMelhorEnvio?: boolean };
+import type { ReleaseExpressPickupResult } from "@/types/actions";
 
 /**
  * A artesã clicou em "Pronto pra retirada": só agora a corrida da Uber Direct

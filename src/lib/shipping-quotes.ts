@@ -4,7 +4,7 @@
 // pelo navegador, é lógica interna.
 import { createAdminClient } from "@/lib/supabase/admin";
 import { calculateShipping } from "@/lib/melhorenvio/client";
-import { getDeliveryQuote, type UberDirectAddress } from "@/lib/uber-direct";
+import { getDeliveryQuote, isUberDirectConfigured, type UberDirectAddress } from "@/lib/uber-direct";
 import { getStoreCredentialsByStoreIds } from "@/lib/store-credentials";
 import { EXPRESS_DELIVERY_MAX_KM, EXPRESS_MAX_ITEM_WEIGHT_GRAMS, UBER_DIRECT_SERVICE_ID } from "@/lib/constants";
 import { getMobilePhoneError } from "@/lib/phone";
@@ -322,16 +322,21 @@ export async function quoteShippingForCart(
   // Nominatim é limitado a 1 req/s e o carrinho pode ter várias lojas.
   // Se não resolver, nenhuma loja fica elegível à expressa e o checkout segue
   // só com Melhor Envio — é a degradação esperada, não um erro pro comprador.
-  const destinationCoordinates = await geocodeAddress({
-    street: destination.street,
-    number: destination.number,
-    neighborhood: destination.neighborhood ?? null,
-    city: destination.city,
-    state: destination.state,
-    cep,
-  });
+  // Sem credenciais da Uber a geocodificação seria trabalho (e 1 s de
+  // Nominatim) à toa: a expressa não vai ser oferecida de qualquer jeito.
+  const uberConfigured = isUberDirectConfigured();
+  const destinationCoordinates = uberConfigured
+    ? await geocodeAddress({
+        street: destination.street,
+        number: destination.number,
+        neighborhood: destination.neighborhood ?? null,
+        city: destination.city,
+        state: destination.state,
+        cep,
+      })
+    : null;
 
-  if (!destinationCoordinates) {
+  if (uberConfigured && !destinationCoordinates) {
     console.warn("[geocoding] endereço de entrega não resolveu — entrega expressa não será oferecida");
   }
 
@@ -344,8 +349,10 @@ export async function quoteShippingForCart(
     const failedCarriers: ShippingCarrier[] = [];
 
     // 1) Entrega expressa — só pra loja dentro do raio. Entra primeiro na
-    // lista por ser a opção mais rápida.
-    if (isWithinExpressRadius(group.origin, destinationCoordinates)) {
+    // lista por ser a opção mais rápida. Sem as credenciais da Uber neste
+    // ambiente o ramo inteiro é pulado, sem tentar nem logar: não há o que
+    // cotar, e tentar só geraria um erro por cotação e latência à toa.
+    if (uberConfigured && isWithinExpressRadius(group.origin, destinationCoordinates)) {
       const expressBlocker = getExpressBlocker(whatsappByStore.get(storeId), group.maxItemWeightGrams);
       if (expressBlocker) {
         console.warn(`[uber-direct][auditoria] entrega expressa omitida para store ${storeId}: ${expressBlocker}`);

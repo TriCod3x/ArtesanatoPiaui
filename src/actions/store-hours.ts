@@ -3,12 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { validateStoreHoursInput, type StoreHoursInputDay } from "@/lib/store-hours";
-
-export interface ExpressSettingsInput {
-  days: StoreHoursInputDay[];
-  prepMinutes: number;
-  paused: boolean;
-}
+import type { ExpressSettingsInput } from "@/types/actions";
 
 /**
  * Salva horário de funcionamento, tempo de preparo e pausa da entrega
