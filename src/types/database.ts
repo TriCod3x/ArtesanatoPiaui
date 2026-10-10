@@ -938,6 +938,7 @@ export type Database = {
           melhorenvio_cart_id: string | null
           melhorenvio_order_id: string | null
           order_id: string
+          pickup_released_at: string | null
           price: number | null
           service_id: string | null
           service_name: string | null
@@ -958,6 +959,7 @@ export type Database = {
           melhorenvio_cart_id?: string | null
           melhorenvio_order_id?: string | null
           order_id: string
+          pickup_released_at?: string | null
           price?: number | null
           service_id?: string | null
           service_name?: string | null
@@ -978,6 +980,7 @@ export type Database = {
           melhorenvio_cart_id?: string | null
           melhorenvio_order_id?: string | null
           order_id?: string
+          pickup_released_at?: string | null
           price?: number | null
           service_id?: string | null
           service_name?: string | null
@@ -1034,6 +1037,35 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "store_contacts_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      store_hours: {
+        Row: {
+          closes: string
+          opens: string
+          store_id: string
+          weekday: number
+        }
+        Insert: {
+          closes: string
+          opens: string
+          store_id: string
+          weekday: number
+        }
+        Update: {
+          closes?: string
+          opens?: string
+          store_id?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "store_hours_store_id_fkey"
             columns: ["store_id"]
             isOneToOne: false
             referencedRelation: "stores"
@@ -1134,6 +1166,8 @@ export type Database = {
           commission_rate: number
           created_at: string
           description: string | null
+          express_paused: boolean
+          express_prep_minutes: number
           geocoded_at: string | null
           id: string
           latitude: number | null
@@ -1163,6 +1197,8 @@ export type Database = {
           commission_rate?: number
           created_at?: string
           description?: string | null
+          express_paused?: boolean
+          express_prep_minutes?: number
           geocoded_at?: string | null
           id?: string
           latitude?: number | null
@@ -1192,6 +1228,8 @@ export type Database = {
           commission_rate?: number
           created_at?: string
           description?: string | null
+          express_paused?: boolean
+          express_prep_minutes?: number
           geocoded_at?: string | null
           id?: string
           latitude?: number | null

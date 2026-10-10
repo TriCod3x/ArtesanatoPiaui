@@ -85,6 +85,8 @@ export function getBuyerOrderStatusLabel(orderStatus: string, shipmentStatus?: s
 
 export type SellerOrderStatus =
   | "novo_pedido"
+  | "liberar_retirada"
+  | "entrega_expressa_sem_motorista"
   | "etiqueta_gerada"
   | "enviado"
   | "em_transito"
@@ -94,6 +96,8 @@ export type SellerOrderStatus =
 
 export const SELLER_ORDER_STATUS_LABEL: Record<SellerOrderStatus, string> = {
   novo_pedido: "Novo pedido: preparar envio",
+  liberar_retirada: "Embale e libere a retirada",
+  entrega_expressa_sem_motorista: "Retirada liberada, motorista não confirmado",
   etiqueta_gerada: "Etiqueta gerada",
   enviado: "Enviado",
   em_transito: "Em trânsito",
@@ -104,6 +108,8 @@ export const SELLER_ORDER_STATUS_LABEL: Record<SellerOrderStatus, string> = {
 
 export const SELLER_ORDER_STATUS_CLASS: Record<SellerOrderStatus, string> = {
   novo_pedido: "bg-amber/15 text-amber",
+  liberar_retirada: "bg-amber/15 text-amber",
+  entrega_expressa_sem_motorista: "bg-destructive/15 text-destructive",
   etiqueta_gerada: "bg-blue-500/15 text-blue-500",
   enviado: "bg-blue-500/15 text-blue-500",
   em_transito: "bg-blue-500/15 text-blue-500",
@@ -116,6 +122,7 @@ export function getSellerOrderStatus(
   itemStatus: string,
   shipmentStatus?: string | null,
   carrier?: string | null,
+  pickupReleasedAt?: string | null,
 ): SellerOrderStatus {
   if (itemStatus === "cancelled") return "cancelado";
   if (itemStatus === "delivered") return "entregue";
@@ -133,6 +140,13 @@ export function getSellerOrderStatus(
       return "cancelado";
     case "pending":
     default:
+      // Entrega expressa só despacha quando a artesã libera a retirada. Se já
+      // foi liberada e o shipment continua 'pending' com carrier uber_direct,
+      // o despacho falhou por completo (ver handleDispatchFailure) — não é
+      // "novo pedido" de novo, e o botão não pode reaparecer.
+      if (carrier === "uber_direct") {
+        return pickupReleasedAt ? "entrega_expressa_sem_motorista" : "liberar_retirada";
+      }
       return "novo_pedido";
   }
 }
@@ -141,6 +155,7 @@ export function getSellerOrderStatusLabel(
   itemStatus: string,
   shipmentStatus?: string | null,
   carrier?: string | null,
+  pickupReleasedAt?: string | null,
 ): string {
-  return SELLER_ORDER_STATUS_LABEL[getSellerOrderStatus(itemStatus, shipmentStatus, carrier)];
+  return SELLER_ORDER_STATUS_LABEL[getSellerOrderStatus(itemStatus, shipmentStatus, carrier, pickupReleasedAt)];
 }

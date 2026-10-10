@@ -21,9 +21,11 @@ interface EditStoreFormProps {
   store: StoreWithContacts;
   whatsapp: string;
   instagram: string;
+  /** Seções extras (ex.: entrega expressa) renderizadas depois do formulário. */
+  children?: React.ReactNode;
 }
 
-export function EditStoreForm({ store, whatsapp, instagram }: EditStoreFormProps) {
+export function EditStoreForm({ store, whatsapp, instagram, children }: EditStoreFormProps) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [logoUrl, setLogoUrl] = useState(store.logo_url ?? "");
@@ -229,6 +231,8 @@ export function EditStoreForm({ store, whatsapp, instagram }: EditStoreFormProps
           </Button>
         </div>
       </form>
+
+      {children}
     </main>
   );
 }

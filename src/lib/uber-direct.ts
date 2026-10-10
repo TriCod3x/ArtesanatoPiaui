@@ -9,6 +9,17 @@ const OAUTH_URL = "https://login.uber.com/oauth/v2/token";
 const API_BASE = "https://api.uber.com";
 const OAUTH_SCOPE = "eats.deliveries";
 
+/**
+ * A Uber Direct está configurada neste ambiente? Só olha se as variáveis
+ * existem (as mesmas que getAccessToken/createDelivery exigem) — nunca expõe
+ * valores. Usada pra esconder da vendedora configuração que não teria efeito.
+ */
+export function isUberDirectConfigured(): boolean {
+  return ["UBER_DIRECT_CLIENT_ID", "UBER_DIRECT_CLIENT_SECRET", "UBER_DIRECT_CUSTOMER_ID"].every(
+    (name) => !!process.env[name],
+  );
+}
+
 function env(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} não configurada.`);
@@ -39,13 +50,27 @@ export interface DeliveryQuote {
 }
 
 export class UberDirectError extends Error {
+  /**
+   * true quando NÃO dá pra saber se a Uber criou a entrega (timeout, conexão
+   * caída, resposta sem corpo ou ilegível). Só createDelivery marca isto: uma
+   * falha ambígua não pode ser tratada como "não criou" (risco de duas corridas).
+   */
+  public readonly ambiguous: boolean;
+
   constructor(
     message: string,
     public readonly status?: number,
+    options?: { ambiguous?: boolean },
   ) {
     super(message);
     this.name = "UberDirectError";
+    this.ambiguous = options?.ambiguous === true;
   }
+}
+
+/** O erro de createDelivery deixa em aberto se a corrida foi criada? */
+export function isAmbiguousDeliveryError(err: unknown): boolean {
+  return err instanceof UberDirectError && err.ambiguous;
 }
 
 interface CachedToken {
@@ -235,39 +260,59 @@ export async function createDelivery(
   const customerId = env("UBER_DIRECT_CUSTOMER_ID");
   const accessToken = await getAccessToken();
 
-  const res = await fetch(`${API_BASE}/v1/customers/${customerId}/deliveries`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      quote_id: quoteId,
-      pickup_address: JSON.stringify(pickupAddress),
-      pickup_name: recipientInfo.pickupName,
-      pickup_phone_number: toE164Brazil(recipientInfo.pickupPhone),
-      dropoff_address: JSON.stringify(dropoffAddress),
-      dropoff_name: recipientInfo.dropoffName,
-      dropoff_phone_number: toE164Brazil(recipientInfo.dropoffPhone),
-      ...(recipientInfo.dropoffNotes ? { dropoff_notes: recipientInfo.dropoffNotes } : {}),
-      manifest_items: orderItemInfo.map((item) => ({
-        name: item.name,
-        quantity: item.quantity,
-        size: pickItemSize(item),
-        ...(item.dimensionsCm && item.weightGrams
-          ? { dimensions: item.dimensionsCm, weight: item.weightGrams }
-          : {}),
-        ...(item.priceCents !== undefined ? { price: item.priceCents } : {}),
-      })),
-      ...(externalId ? { external_id: externalId } : {}),
-      ...(manifestTotalValueCents !== undefined
-        ? { manifest_total_value: manifestTotalValueCents }
+  // O corpo é montado ANTES do try: erro aqui (ex.: telefone inválido) é
+  // anterior a qualquer requisição, portanto nunca ambíguo.
+  const requestBody = JSON.stringify({
+    quote_id: quoteId,
+    pickup_address: JSON.stringify(pickupAddress),
+    pickup_name: recipientInfo.pickupName,
+    pickup_phone_number: toE164Brazil(recipientInfo.pickupPhone),
+    dropoff_address: JSON.stringify(dropoffAddress),
+    dropoff_name: recipientInfo.dropoffName,
+    dropoff_phone_number: toE164Brazil(recipientInfo.dropoffPhone),
+    ...(recipientInfo.dropoffNotes ? { dropoff_notes: recipientInfo.dropoffNotes } : {}),
+    manifest_items: orderItemInfo.map((item) => ({
+      name: item.name,
+      quantity: item.quantity,
+      size: pickItemSize(item),
+      ...(item.dimensionsCm && item.weightGrams
+        ? { dimensions: item.dimensionsCm, weight: item.weightGrams }
         : {}),
-    }),
+      ...(item.priceCents !== undefined ? { price: item.priceCents } : {}),
+    })),
+    ...(externalId ? { external_id: externalId } : {}),
+    ...(manifestTotalValueCents !== undefined ? { manifest_total_value: manifestTotalValueCents } : {}),
   });
 
-  const rawText = await res.text();
+  // Daqui em diante a requisição pode ter chegado na Uber. Classificação:
+  //  - DEFINITIVO: a Uber respondeu com erro HTTP 4xx/5xx E com corpo — ela
+  //    disse explicitamente que não criou (inclui "sem entregador disponível",
+  //    quote expirada, endereço não atendido, 401/429 etc.);
+  //  - AMBÍGUO (ambiguous=true): fetch lançou (timeout/conexão), corpo não
+  //    pôde ser lido, resposta de erro SEM corpo, 408/504 (um gateway pode ter
+  //    repassado a requisição), ou resposta 2xx ilegível/sem id.
+  let res: Response;
+  let rawText: string;
+  try {
+    res = await fetch(`${API_BASE}/v1/customers/${customerId}/deliveries`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: requestBody,
+    });
+    rawText = await res.text();
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    throw new UberDirectError(
+      `Sem resposta confiável da Uber Direct ao criar a entrega (${reason}) — a corrida pode ter sido criada.`,
+      undefined,
+      { ambiguous: true },
+    );
+  }
+
   if (!res.ok) {
     let message = rawText;
     try {
@@ -276,19 +321,34 @@ export async function createDelivery(
     } catch {
       // corpo não é JSON — mantém o texto bruto
     }
-    throw new UberDirectError(`Falha ao criar entrega na Uber Direct (${res.status}): ${message}`, res.status);
+    const hasBody = rawText.trim().length > 0;
+    const gatewayTimeout = res.status === 408 || res.status === 504;
+    throw new UberDirectError(
+      `Falha ao criar entrega na Uber Direct (${res.status}): ${message}`,
+      res.status,
+      { ambiguous: !hasBody || gatewayTimeout },
+    );
   }
 
-  const data = JSON.parse(rawText) as {
+  let data: {
     id?: string;
     status?: string;
     tracking_url?: string;
     fee?: number;
     currency?: string;
   };
+  try {
+    data = JSON.parse(rawText);
+  } catch {
+    throw new UberDirectError(
+      "Resposta 2xx da Uber Direct ilegível ao criar a entrega — a corrida pode ter sido criada.",
+      res.status,
+      { ambiguous: true },
+    );
+  }
 
   if (!data.id) {
-    throw new UberDirectError("Resposta da Uber Direct sem id da entrega.");
+    throw new UberDirectError("Resposta da Uber Direct sem id da entrega.", res.status, { ambiguous: true });
   }
 
   return {

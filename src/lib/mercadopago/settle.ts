@@ -1,6 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { purchaseLabelForShipment } from "@/lib/melhorenvio/purchase";
-import { dispatchExpressDelivery } from "@/lib/uber-direct-dispatch";
 import type { MPPayment } from "./client";
 import type { Json } from "@/types/database";
 
@@ -193,11 +192,24 @@ export async function settlePayment(params: {
   // pedido pago esperando. Uma notificação por loja por pedido.
   try {
     if (store?.owner_id) {
+      const { data: shipmentForNotice } = await admin
+        .from("shipments")
+        .select("carrier")
+        .eq("order_id", params.orderId)
+        .eq("store_id", params.storeId)
+        .maybeSingle();
+
+      // Entrega expressa não despacha sozinha: a Uber só é chamada quando a
+      // artesã clica em "Pronto pra retirada" (releaseExpressPickup). O aviso
+      // precisa dizer isso, senão ela espera um motorista que ninguém chamou.
+      const isExpress = shipmentForNotice?.carrier === "uber_direct";
       await admin.from("notifications").insert({
         user_id: store.owner_id,
         type: "novo_pedido_pago",
         title: "Novo pedido pago",
-        message: `Pedido #${params.orderId.slice(0, 8)} foi pago e está pronto pra você preparar o envio.`,
+        message: isExpress
+          ? `Pedido #${params.orderId.slice(0, 8)} foi pago com entrega expressa. Embale o pedido e clique em "Pronto pra retirada" pra chamar o motorista.`
+          : `Pedido #${params.orderId.slice(0, 8)} foi pago e está pronto pra você preparar o envio.`,
         link: "/minha-loja/pedidos",
       });
     }
@@ -208,10 +220,13 @@ export async function settlePayment(params: {
     }, err);
   }
 
-  // Logística automática assim que ESSA loja é paga — não espera as demais
-  // lojas do carrinho (cada uma tem sua própria conta/etiqueta). Qual caminho
-  // depende do que o comprador escolheu no checkout: entrega expressa dispara
-  // a corrida na Uber Direct, o resto compra etiqueta na Melhor Envio.
+  // Logística assim que ESSA loja é paga — não espera as demais lojas do
+  // carrinho (cada uma tem sua própria conta/etiqueta). Qual caminho depende
+  // do que o comprador escolheu no checkout: Melhor Envio compra a etiqueta
+  // aqui; entrega expressa (Uber Direct) NÃO chama a Uber — o shipment fica
+  // 'pending' com pickup_released_at NULL até a artesã liberar a retirada
+  // (releaseExpressPickup em actions/express-pickup.ts). Motivo: de madrugada
+  // ou com o pedido não visto, o motorista chegava num pacote inexistente.
   //
   // Este bloco INTEIRO é best-effort e não pode derrubar o resto: o pagamento
   // já foi marcado como pago e a comissão já foi lançada acima, e o que vem
@@ -228,8 +243,19 @@ export async function settlePayment(params: {
       .eq("store_id", params.storeId)
       .maybeSingle();
 
-    if (shipmentCarrier?.carrier === "uber_direct") {
-      await dispatchExpressDelivery(params.orderId, params.storeId);
+    if (!shipmentCarrier) {
+      console.error("[shipments][auditoria] pedido pago sem shipment — frete nunca foi registrado", {
+        orderId: params.orderId,
+        storeId: params.storeId,
+      });
+    } else if (shipmentCarrier.carrier === "uber_direct") {
+      // O shipment já nasce no createOrder com carrier uber_direct, status
+      // 'pending', uber_delivery_id e pickup_released_at nulos — nada a gravar
+      // aqui. Só registra que a espera pela liberação começou.
+      console.info("[uber-direct][auditoria] pedido pago aguardando liberação da retirada pela loja", {
+        orderId: params.orderId,
+        storeId: params.storeId,
+      });
     } else {
       await purchaseLabelForShipment(params.orderId, params.storeId);
     }

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { Package, Truck, ExternalLink } from "lucide-react";
+import { ReleasePickupButton } from "./ReleasePickupButton";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatPrice } from "@/lib/utils";
@@ -21,6 +22,8 @@ interface SellerOrderItem {
 }
 
 interface SellerOrderShipment {
+  id: string;
+  pickupReleasedAt: string | null;
   serviceName: string | null;
   carrier: string;
   status: string;
@@ -36,6 +39,8 @@ interface SellerOrder {
   buyerState: string | null;
   items: SellerOrderItem[];
   shipment: SellerOrderShipment | null;
+  /** Quando o pagamento DESTA loja confirmou (payments.updated_at, status paid). */
+  paidAt: string | null;
   netAmount: number;
 }
 
@@ -78,17 +83,25 @@ export default async function SellerOrdersPage() {
 
   const orderIds = [...new Set((items ?? []).map((i) => i.order_id))];
 
-  const [{ data: orders }, { data: shipments }] = await Promise.all([
+  const [{ data: orders }, { data: shipments }, { data: paidPayments }] = await Promise.all([
     orderIds.length > 0
       ? admin.from("orders").select("id, created_at, buyer_id, shipping_city, shipping_state").in("id", orderIds)
       : Promise.resolve({ data: [] as { id: string; created_at: string; buyer_id: string; shipping_city: string | null; shipping_state: string | null }[] }),
     orderIds.length > 0
       ? admin
           .from("shipments")
-          .select("order_id, service_name, carrier, status, tracking_code, uber_tracking_url")
+          .select("id, order_id, service_name, carrier, status, tracking_code, uber_tracking_url, pickup_released_at")
           .eq("store_id", store.id)
           .in("order_id", orderIds)
-      : Promise.resolve({ data: [] as { order_id: string; service_name: string | null; carrier: string; status: string; tracking_code: string | null; uber_tracking_url: string | null }[] }),
+      : Promise.resolve({ data: [] as { id: string; order_id: string; service_name: string | null; carrier: string; status: string; tracking_code: string | null; uber_tracking_url: string | null; pickup_released_at: string | null }[] }),
+    orderIds.length > 0
+      ? admin
+          .from("payments")
+          .select("order_id, updated_at")
+          .eq("store_id", store.id)
+          .eq("status", "paid")
+          .in("order_id", orderIds)
+      : Promise.resolve({ data: [] as { order_id: string; updated_at: string }[] }),
   ]);
 
   const buyerIds = [...new Set((orders ?? []).map((o) => o.buyer_id))];
@@ -99,6 +112,7 @@ export default async function SellerOrdersPage() {
 
   const buyerNameById = new Map((buyers ?? []).map((b) => [b.id, b.full_name]));
   const shipmentByOrderId = new Map((shipments ?? []).map((s) => [s.order_id, s]));
+  const paidAtByOrderId = new Map((paidPayments ?? []).map((p) => [p.order_id, p.updated_at]));
 
   const orderById = new Map((orders ?? []).map((o) => [o.id, o]));
 
@@ -130,6 +144,8 @@ export default async function SellerOrdersPage() {
         items: orderItems,
         shipment: shipment
           ? {
+              id: shipment.id,
+              pickupReleasedAt: shipment.pickup_released_at,
               serviceName: shipment.service_name,
               carrier: shipment.carrier,
               status: shipment.status,
@@ -137,6 +153,7 @@ export default async function SellerOrdersPage() {
               uberTrackingUrl: shipment.uber_tracking_url,
             }
           : null,
+        paidAt: paidAtByOrderId.get(orderId) ?? null,
         netAmount: Math.round(grossAmount * (1 - store.commission_rate / 100) * 100) / 100,
       };
     })
@@ -170,6 +187,7 @@ export default async function SellerOrdersPage() {
               order.items[0]?.itemStatus ?? "confirmed",
               order.shipment?.status,
               order.shipment?.carrier,
+              order.shipment?.pickupReleasedAt,
             );
 
             return (
@@ -235,6 +253,28 @@ export default async function SellerOrdersPage() {
                     Você recebe {formatPrice(order.netAmount)}
                   </span>
                 </div>
+
+                {status === "liberar_retirada" && order.shipment && (
+                  <div className="flex items-center justify-between gap-3 mt-3 pt-3 border-t border-border dark:border-[#3d2c1a]">
+                    <p className="text-xs text-muted-foreground">
+                      Embale o pedido e clique quando estiver pronto: é nesse momento que o motorista é chamado.
+                      {order.paidAt && (
+                        <>
+                          {" "}
+                          Pago <RelativeTime date={order.paidAt} />.
+                        </>
+                      )}
+                    </p>
+                    <ReleasePickupButton shipmentId={order.shipment.id} />
+                  </div>
+                )}
+
+                {status === "entrega_expressa_sem_motorista" && (
+                  <p className="text-xs text-destructive mt-2">
+                    Você liberou a retirada, mas não conseguimos confirmar o motorista. Não libere de novo: entre em
+                    contato com o suporte para resolver este envio.
+                  </p>
+                )}
 
                 {status === "etiqueta_gerada" && (
                   <p className="text-xs text-muted-foreground mt-2">

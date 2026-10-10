@@ -3,50 +3,143 @@ import { getStoreCredential } from "@/lib/store-credentials";
 import { calculateShipping } from "@/lib/melhorenvio/client";
 import { purchaseLabelForShipment } from "@/lib/melhorenvio/purchase";
 import { onlyDigits } from "@/lib/utils";
+import { EXPRESS_REQUOTE_TOLERANCE_CENTS } from "@/lib/constants";
 import {
   createDelivery,
   getDeliveryQuote,
+  isAmbiguousDeliveryError,
   type DeliveryManifestItem,
   type UberDirectAddress,
 } from "@/lib/uber-direct";
 
 /**
- * Dispara a entrega expressa (Uber Direct) da loja assim que o pagamento
- * daquela loja e confirmado — sem aprovacao manual, chamado pelo settlePayment.
- *
- * Idempotente: so roda com o shipment ainda em 'pending'. Nada aqui propaga
- * erro: o pagamento do comprador JA foi confirmado e nao pode ser desfeito por
- * uma falha de logistica. Quando a criacao da entrega falha, o tratamento vai
- * pra handleDispatchFailure() — fallback pro Melhor Envio quando da, e marcacao
- * explicita pra intervencao manual quando nao da.
+ * O que aconteceu no despacho — releaseExpressPickup traduz isso na mensagem
+ * pra artesa. Em "retry_later" e "requote_too_high" a liberacao
+ * (pickup_released_at) volta pra NULL e o botao reaparece; em "unconfirmed"
+ * ela fica preenchida.
  */
-export async function dispatchExpressDelivery(orderId: string, storeId: string): Promise<void> {
+export type ExpressDispatchOutcome =
+  | { kind: "dispatched" }
+  | { kind: "fallback_melhorenvio" }
+  /** Falha DEFINITIVA sem fallback: liberacao revertida, pode tentar de novo. */
+  | { kind: "retry_later" }
+  /** Recotacao acima do frete pago + tolerancia: corrida nao criada, liberacao revertida. */
+  | { kind: "requote_too_high" }
+  /** Erro ambiguo (a corrida pode existir) ou estado inesperado: liberacao mantida. */
+  | { kind: "unconfirmed" }
+  | { kind: "skipped" };
+
+/**
+ * Dispara a entrega expressa (Uber Direct) da loja. Chamado SO por
+ * releaseExpressPickup (actions/express-pickup.ts), depois que a artesa clicou
+ * em "Pronto pra retirada" e reivindicou pickup_released_at de forma atomica —
+ * o settlePayment nao chama mais a Uber.
+ *
+ * Idempotente: so roda com o shipment ainda em 'pending', ja liberado
+ * (pickup_released_at preenchido) e sem uber_delivery_id. Com uber_delivery_id
+ * preenchido nunca despacha e nunca reverte a liberacao.
+ *
+ * Nada aqui propaga erro: o pagamento do comprador JA foi confirmado e nao
+ * pode ser desfeito por uma falha de logistica.
+ */
+export async function dispatchExpressDelivery(orderId: string, storeId: string): Promise<ExpressDispatchOutcome> {
   try {
-    await runExpressDispatch(orderId, storeId);
+    return await runExpressDispatch(orderId, storeId);
   } catch (err) {
-    // Rede /-parsing nas leituras que acontecem antes do try interno, ou falha
-    // ao gravar a propria nota de erro: nada disso pode escapar pro
-    // settlePayment (que ja tem sua propria guarda, mas esta funcao promete no
-    // contrato nunca lancar).
+    // Excecao nao prevista: nao da pra saber em que ponto parou (talvez depois
+    // do createDelivery). Mantem a liberacao — reverter aqui poderia gerar
+    // uma segunda corrida.
     console.error(
       "[uber-direct][auditoria] falha nao tratada no despacho expresso",
       { orderId, storeId },
       err,
     );
+    return { kind: "unconfirmed" };
   }
 }
 
-async function runExpressDispatch(orderId: string, storeId: string): Promise<void> {
+/**
+ * Reverte a liberacao (botao volta pra artesa) e grava o motivo. So age se a
+ * corrida NAO existe (uber_delivery_id nulo) e o shipment ainda e da Uber.
+ * Devolve false se nao conseguiu reverter.
+ */
+async function resetRelease(shipmentId: string, note: string): Promise<boolean> {
+  const admin = createAdminClient();
+  try {
+    const { data, error } = await admin
+      .from("shipments")
+      .update({
+        pickup_released_at: null,
+        status: "pending",
+        fulfillment_note: note,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", shipmentId)
+      .eq("carrier", "uber_direct")
+      .is("uber_delivery_id", null)
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data) {
+      console.error(
+        "[uber-direct][auditoria] nao conseguiu reverter pickup_released_at",
+        { shipmentId },
+        error,
+      );
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("[uber-direct][auditoria] excecao ao reverter pickup_released_at", { shipmentId }, err);
+    return false;
+  }
+}
+
+async function notifyAdmins(type: string, title: string, message: string): Promise<void> {
+  const admin = createAdminClient();
+  try {
+    const { data: admins } = await admin.from("profiles").select("id").eq("role", "admin");
+    if (admins && admins.length > 0) {
+      await admin
+        .from("notifications")
+        .insert(admins.map((a) => ({ user_id: a.id, type, title, message })));
+    }
+  } catch (err) {
+    console.error("[uber-direct][auditoria] falha ao notificar admin", { type }, err);
+  }
+}
+
+async function runExpressDispatch(orderId: string, storeId: string): Promise<ExpressDispatchOutcome> {
   const admin = createAdminClient();
 
   const { data: shipment } = await admin
     .from("shipments")
-    .select("id, status, carrier, price")
+    .select("id, status, carrier, price, pickup_released_at, uber_delivery_id")
     .eq("order_id", orderId)
     .eq("store_id", storeId)
     .maybeSingle();
 
-  if (!shipment || shipment.carrier !== "uber_direct" || shipment.status !== "pending") return;
+  if (!shipment || shipment.carrier !== "uber_direct" || shipment.status !== "pending") {
+    return { kind: "skipped" };
+  }
+
+  // Defesa em profundidade: sem a liberacao da artesa (ou com corrida ja
+  // criada) nunca chama a Uber, mesmo que alguem invoque esta funcao direto.
+  if (!shipment.pickup_released_at || shipment.uber_delivery_id) {
+    console.warn("[uber-direct][auditoria] despacho ignorado: retirada nao liberada ou corrida ja existe", {
+      orderId,
+      storeId,
+    });
+    return { kind: "skipped" };
+  }
+
+  // Leituras de preparo: falhar aqui e anterior a qualquer chamada na Uber,
+  // entao e seguro devolver a liberacao pra artesa tentar de novo.
+  const abortBeforeUber = async (what: string): Promise<ExpressDispatchOutcome> => {
+    console.error("[uber-direct][auditoria] despacho abortado antes da Uber", { orderId, storeId, what });
+    const ok = await resetRelease(shipment.id, "Despacho abortado antes da Uber: " + what + ".");
+    return ok ? { kind: "retry_later" } : { kind: "unconfirmed" };
+  };
 
   const { data: order } = await admin
     .from("orders")
@@ -55,21 +148,21 @@ async function runExpressDispatch(orderId: string, storeId: string): Promise<voi
     )
     .eq("id", orderId)
     .single();
-  if (!order) return;
+  if (!order) return abortBeforeUber("pedido nao encontrado");
 
   const { data: store } = await admin
     .from("stores")
     .select("name, cep, address_street, address_number, address_neighborhood, city, state")
     .eq("id", storeId)
     .single();
-  if (!store) return;
+  if (!store) return abortBeforeUber("loja nao encontrada");
 
   const { data: items } = await admin
     .from("order_items")
     .select("quantity, unit_price, product:products(name, height_cm, width_cm, length_cm, weight_grams)")
     .eq("order_id", orderId)
     .eq("store_id", storeId);
-  if (!items || items.length === 0) return;
+  if (!items || items.length === 0) return abortBeforeUber("itens do pedido nao encontrados");
 
   const { data: contacts } = await admin
     .from("store_contacts")
@@ -133,29 +226,82 @@ async function runExpressDispatch(orderId: string, storeId: string): Promise<voi
     0,
   );
 
+  const paidPrice = shipment.price ?? 0;
+
+  // 1) Cotacao. Qualquer falha aqui e DEFINITIVA: nenhuma entrega foi pedida.
+  let quoteId: string;
+  let quotedFeeCents: number;
   try {
     // A cotacao do checkout nao serve mais: quote_id da Uber tem validade curta
-    // e o pagamento pode ter levado minutos (Pix) ou muito mais. Recota agora e
-    // usa o quote_id novo.
+    // e a liberacao acontece quando a artesa embalou (pode ser horas depois do
+    // pagamento). Recota agora e usa o quote_id novo.
     const quote = await getDeliveryQuote(pickupAddress, dropoffAddress);
     if (!quote.id) {
       throw new Error("cotacao da Uber Direct veio sem quote_id");
     }
-
-    // O comprador ja pagou o frete cotado no checkout. Se a recotacao subiu, a
-    // diferenca fica com a plataforma/loja — nao da pra cobrar de novo. So
-    // registra pra conferencia.
-    const paidPrice = shipment.price ?? 0;
-    const quotedPrice = quote.fee / 100;
-    if (Math.abs(quotedPrice - paidPrice) > 0.01) {
-      console.warn(
-        "[uber-direct] frete recotado difere do pago",
-        { orderId, storeId, paidPrice, quotedPrice },
-      );
+    if (quote.currency.toLowerCase() !== "brl") {
+      throw new Error("cotacao da Uber Direct veio em " + quote.currency);
     }
+    quoteId = quote.id;
+    quotedFeeCents = quote.fee;
+  } catch (err) {
+    return handleDispatchFailure({
+      orderId,
+      storeId,
+      shipmentId: shipment.id,
+      paidPrice,
+      error: err,
+      ambiguous: false,
+    });
+  }
 
-    const delivery = await createDelivery(
-      quote.id,
+  // 2) Teto na recotacao. O comprador ja pagou o frete cotado no checkout:
+  // dentro da tolerancia a plataforma absorve a diferenca; acima dela a corrida
+  // nao e criada (nao da pra cobrar de novo).
+  const paidCents = Math.round(paidPrice * 100);
+  const diffCents = quotedFeeCents - paidCents;
+  if (diffCents > EXPRESS_REQUOTE_TOLERANCE_CENTS) {
+    console.warn("[uber-direct][auditoria] recotacao acima do frete pago + tolerancia — corrida nao criada", {
+      orderId,
+      storeId,
+      paidCents,
+      quotedCents: quotedFeeCents,
+      toleranceCents: EXPRESS_REQUOTE_TOLERANCE_CENTS,
+    });
+
+    const reset = await resetRelease(
+      shipment.id,
+      "recotação acima do frete pago (pago R$" + (paidCents / 100).toFixed(2) +
+        ", recotado R$" + (quotedFeeCents / 100).toFixed(2) + ", tolerância R$" +
+        (EXPRESS_REQUOTE_TOLERANCE_CENTS / 100).toFixed(2) + ").",
+    );
+
+    await notifyAdmins(
+      "recotacao_expressa_acima_do_frete",
+      "Entrega expressa não despachada: recotação acima do frete",
+      "Pedido " + orderId.slice(0, 8) + " (loja " + storeId.slice(0, 8) + "): frete pago R$" +
+        (paidCents / 100).toFixed(2) + ", recotação R$" + (quotedFeeCents / 100).toFixed(2) +
+        ". A corrida não foi criada e a retirada voltou pra loja.",
+    );
+
+    return reset ? { kind: "requote_too_high" } : { kind: "unconfirmed" };
+  }
+
+  if (diffCents > 1) {
+    console.warn("[uber-direct] frete recotado acima do pago, dentro da tolerancia (plataforma absorve)", {
+      orderId,
+      storeId,
+      paidCents,
+      quotedCents: quotedFeeCents,
+      absorbedCents: diffCents,
+    });
+  }
+
+  // 3) Criacao da corrida. Daqui em diante a Uber pode ter criado a entrega.
+  let delivery: Awaited<ReturnType<typeof createDelivery>>;
+  try {
+    delivery = await createDelivery(
+      quoteId,
       pickupAddress,
       dropoffAddress,
       {
@@ -169,40 +315,53 @@ async function runExpressDispatch(orderId: string, storeId: string): Promise<voi
       orderId + ":" + storeId,
       manifestTotalValueCents,
     );
-
-    await admin
-      .from("shipments")
-      .update({
-        status: "purchased",
-        uber_delivery_id: delivery.id,
-        uber_delivery_status: delivery.status,
-        uber_tracking_url: delivery.trackingUrl,
-        fulfillment_note: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", shipment.id);
   } catch (err) {
-    await handleDispatchFailure({
+    return handleDispatchFailure({
       orderId,
       storeId,
       shipmentId: shipment.id,
-      paidPrice: shipment.price ?? 0,
+      paidPrice,
       error: err,
+      ambiguous: isAmbiguousDeliveryError(err),
     });
   }
+
+  // 4) Gravacao FORA do try do createDelivery: a corrida ja existe, entao uma
+  // falha de banco aqui nunca pode cair no tratamento de "despacho falhou"
+  // (fallback / reversao da liberacao).
+  const { error: saveError } = await admin
+    .from("shipments")
+    .update({
+      status: "purchased",
+      uber_delivery_id: delivery.id,
+      uber_delivery_status: delivery.status,
+      uber_tracking_url: delivery.trackingUrl,
+      fulfillment_note: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", shipment.id);
+
+  if (saveError) {
+    console.error(
+      "[uber-direct][auditoria] corrida CRIADA mas nao gravada no shipment — conferir manualmente",
+      { orderId, storeId, shipmentId: shipment.id, uberDeliveryId: delivery.id },
+      saveError,
+    );
+    return { kind: "unconfirmed" };
+  }
+
+  return { kind: "dispatched" };
 }
 
 /**
- * Fase 5 — a entrega expressa nao saiu (sem cobertura real apesar do raio,
- * erro de API, problema de cobranca). O pedido nao pode travar nem inventar
- * sucesso, entao:
+ * A entrega expressa nao saiu. O pedido nao pode travar nem inventar sucesso:
  *
- * 1. loga o erro com detalhe pra auditoria;
- * 2. tenta fallback automatico pro Melhor Envio — so aceita um servico que
- *    custe ate o que o comprador JA pagou de frete, porque cobrar a diferenca
- *    depois nao e uma opcao;
- * 3. sem fallback viavel, o shipment fica 'pending' com fulfillment_note
- *    dizendo o que houve — e o sinal de que precisa de gente.
+ * - AMBIGUO (a corrida pode existir): nao tenta fallback, nao reverte a
+ *   liberacao; so registra. Reverter/trocar aqui poderia gerar duas entregas.
+ * - DEFINITIVO: tenta fallback automatico pro Melhor Envio — so aceita um
+ *   servico que custe ate o que o comprador JA pagou. Sem fallback viavel, a
+ *   liberacao volta pra NULL (o botao reaparece) com o motivo em
+ *   fulfillment_note.
  */
 async function handleDispatchFailure(params: {
   orderId: string;
@@ -210,13 +369,14 @@ async function handleDispatchFailure(params: {
   shipmentId: string;
   paidPrice: number;
   error: unknown;
-}): Promise<void> {
+  ambiguous: boolean;
+}): Promise<ExpressDispatchOutcome> {
   const admin = createAdminClient();
   const detail = params.error instanceof Error ? params.error.message : String(params.error);
 
   console.error(
-    "[uber-direct][auditoria] createDelivery falhou",
-    { orderId: params.orderId, storeId: params.storeId },
+    "[uber-direct][auditoria] despacho expresso falhou (" + (params.ambiguous ? "AMBIGUO" : "definitivo") + ")",
+    { orderId: params.orderId, storeId: params.storeId, shipmentId: params.shipmentId },
     params.error,
   );
 
@@ -237,49 +397,83 @@ async function handleDispatchFailure(params: {
     }
   };
 
+  if (params.ambiguous) {
+    await markManual(
+      "Resposta ambigua da Uber ao criar a entrega (" + detail + "). A corrida pode ter sido criada — conferir no painel da Uber antes de qualquer nova tentativa.",
+    );
+    return { kind: "unconfirmed" };
+  }
+
+  // Definitivo. Primeiro tenta o Melhor Envio.
+  let fallback: FallbackService | null = null;
   try {
-    const fallback = await findMelhorEnvioFallback(params.orderId, params.storeId, params.paidPrice);
+    fallback = await findMelhorEnvioFallback(params.orderId, params.storeId, params.paidPrice);
+  } catch (err) {
+    console.error(
+      "[uber-direct][auditoria] busca de fallback do Melhor Envio falhou",
+      { orderId: params.orderId, storeId: params.storeId },
+      err,
+    );
+  }
 
-    if (!fallback) {
-      await markManual(
-        "Entrega expressa falhou (" + detail + "). Sem alternativa do Melhor Envio dentro do frete ja pago — precisa de tratamento manual.",
-      );
-      return;
-    }
+  if (!fallback) {
+    const reset = await resetRelease(
+      params.shipmentId,
+      "Entrega expressa falhou (" + detail + "). Sem alternativa do Melhor Envio dentro do frete ja pago — retirada devolvida a loja pra nova tentativa.",
+    );
+    return reset ? { kind: "retry_later" } : { kind: "unconfirmed" };
+  }
 
-    // Troca de transportadora mantendo o preco que o comprador pagou: o
-    // service_id passa a ser o do Melhor Envio, entao purchaseLabelForShipment
-    // consegue comprar a etiqueta normalmente.
-    await admin
-      .from("shipments")
-      .update({
-        carrier: "melhorenvio",
-        service_id: String(fallback.serviceId),
-        service_name: fallback.serviceName,
-        delivery_time_days: fallback.deliveryTimeDays,
-        status: "pending",
-        uber_delivery_id: null,
-        uber_delivery_status: null,
-        uber_tracking_url: null,
-        fulfillment_note:
-          "Entrega expressa falhou (" + detail + "). Trocado automaticamente para " +
-          fallback.serviceName + " (Melhor Envio), cotado a R$" + fallback.price.toFixed(2) +
-          " dentro do frete pago de R$" + params.paidPrice.toFixed(2) + ".",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", params.shipmentId);
+  // Troca de transportadora mantendo o preco que o comprador pagou: o
+  // service_id passa a ser o do Melhor Envio, entao purchaseLabelForShipment
+  // consegue comprar a etiqueta normalmente.
+  const { error: switchError } = await admin
+    .from("shipments")
+    .update({
+      carrier: "melhorenvio",
+      service_id: String(fallback.serviceId),
+      service_name: fallback.serviceName,
+      delivery_time_days: fallback.deliveryTimeDays,
+      status: "pending",
+      uber_delivery_id: null,
+      uber_delivery_status: null,
+      uber_tracking_url: null,
+      fulfillment_note:
+        "Entrega expressa falhou (" + detail + "). Trocado automaticamente para " +
+        fallback.serviceName + " (Melhor Envio), cotado a R$" + fallback.price.toFixed(2) +
+        " dentro do frete pago de R$" + params.paidPrice.toFixed(2) + ".",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", params.shipmentId)
+    .is("uber_delivery_id", null);
 
+  if (switchError) {
+    console.error(
+      "[uber-direct][auditoria] nao conseguiu trocar pra Melhor Envio",
+      { shipmentId: params.shipmentId },
+      switchError,
+    );
+    const reset = await resetRelease(
+      params.shipmentId,
+      "Entrega expressa falhou (" + detail + ") e a troca pro Melhor Envio nao gravou — retirada devolvida a loja.",
+    );
+    return reset ? { kind: "retry_later" } : { kind: "unconfirmed" };
+  }
+
+  try {
     await purchaseLabelForShipment(params.orderId, params.storeId);
   } catch (err) {
     console.error(
-      "[uber-direct][auditoria] fallback do Melhor Envio tambem falhou",
+      "[uber-direct][auditoria] compra da etiqueta do fallback falhou",
       { orderId: params.orderId, storeId: params.storeId },
       err,
     );
     await markManual(
-      "Entrega expressa falhou (" + detail + ") e o fallback do Melhor Envio tambem nao pode ser aplicado — precisa de tratamento manual.",
+      "Entrega expressa falhou (" + detail + ") e a etiqueta do Melhor Envio nao pode ser comprada — precisa de tratamento manual.",
     );
   }
+
+  return { kind: "fallback_melhorenvio" };
 }
 
 interface FallbackService {

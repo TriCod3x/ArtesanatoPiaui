@@ -8,6 +8,11 @@ import { EXPRESS_DELIVERY_MAX_KM, EXPRESS_MAX_ITEM_WEIGHT_GRAMS, UBER_DIRECT_SER
 import { getMobilePhoneError } from "@/lib/phone";
 import { geocodeAddress, haversineDistanceKm, type Coordinates } from "@/lib/geocoding";
 import { onlyDigits } from "@/lib/utils";
+import {
+  getExpressUnavailableHint,
+  isExpressAvailableNow,
+  type StoreHoursRow,
+} from "@/lib/store-hours";
 import type { ShippingOption } from "@/types";
 
 export interface StoreShippingQuote {
@@ -20,6 +25,12 @@ export interface StoreShippingQuote {
    * ter cotado mesmo com o Melhor Envio falhando.
    */
   error?: string;
+  /**
+   * Dica discreta pro checkout: a loja está no raio da entrega expressa, mas
+   * ela não pode ser oferecida agora (fora do horário, pausada, sem horário
+   * configurado). Só aparece pra essa loja.
+   */
+  expressHint?: string;
 }
 
 export interface ShippingItemInput {
@@ -189,7 +200,7 @@ export async function calculateShippingForCart(
   const { data: products } = await admin
     .from("products")
     .select(
-      "id, name, price, weight_grams, height_cm, width_cm, length_cm, store_id, stores(id, name, cep, city, state, address_street, address_number, latitude, longitude)",
+      "id, name, price, weight_grams, height_cm, width_cm, length_cm, store_id, stores(id, name, cep, city, state, address_street, address_number, latitude, longitude, express_prep_minutes, express_paused)",
     )
     .in(
       "id",
@@ -210,6 +221,8 @@ export async function calculateShippingForCart(
       missingDimensions: boolean;
       /** Maior peso unitário (g) entre os itens da loja no carrinho — o limite da Uber é por item. */
       maxItemWeightGrams: number;
+      expressPrepMinutes: number;
+      expressPaused: boolean;
     }
   >();
 
@@ -224,6 +237,8 @@ export async function calculateShippingForCart(
       address_number: string | null;
       latitude: number | null;
       longitude: number | null;
+      express_prep_minutes: number;
+      express_paused: boolean;
     };
     if (!groups.has(store.id)) {
       groups.set(store.id, {
@@ -241,6 +256,8 @@ export async function calculateShippingForCart(
         products: [],
         missingDimensions: false,
         maxItemWeightGrams: 0,
+        expressPrepMinutes: store.express_prep_minutes,
+        expressPaused: store.express_paused,
       });
     }
     const group = groups.get(store.id)!;
@@ -272,6 +289,22 @@ export async function calculateShippingForCart(
     .in("store_id", [...groups.keys()]);
   const whatsappByStore = new Map((whatsappContacts ?? []).map((c) => [c.store_id, c.value]));
 
+  // Horário de funcionamento: loja sem nenhuma linha NÃO oferece expressa
+  // (padrão seguro — ver isExpressAvailableNow). Lido com o client admin
+  // porque a policy pública só enxerga lojas ativas e a cotação não deve
+  // depender disso.
+  const { data: hoursRows } = await admin
+    .from("store_hours")
+    .select("store_id, weekday, opens, closes")
+    .in("store_id", [...groups.keys()]);
+  const hoursByStore = new Map<string, StoreHoursRow[]>();
+  for (const row of hoursRows ?? []) {
+    const list = hoursByStore.get(row.store_id) ?? [];
+    list.push({ weekday: row.weekday, opens: row.opens, closes: row.closes });
+    hoursByStore.set(row.store_id, list);
+  }
+  const now = new Date();
+
   const credentials = await getStoreCredentialsByStoreIds([...groups.keys()], "melhorenvio");
   for (const [storeId, group] of groups) {
     group.accessToken = credentials.get(storeId)?.accessToken ?? null;
@@ -299,6 +332,7 @@ export async function calculateShippingForCart(
   for (const [storeId, group] of groups) {
     const options: ShippingOption[] = [];
     let error: string | undefined;
+    let expressHint: string | undefined;
 
     // 1) Entrega expressa — só pra loja dentro do raio. Entra primeiro na
     // lista por ser a opção mais rápida.
@@ -307,8 +341,23 @@ export async function calculateShippingForCart(
       if (expressBlocker) {
         console.warn(`[uber-direct][auditoria] entrega expressa omitida para store ${storeId}: ${expressBlocker}`);
       } else {
-        const express = await quoteExpressDelivery(storeId, group.storeName, group.origin, destination);
-        if (express) options.push(express);
+        const availability = isExpressAvailableNow({
+          hours: hoursByStore.get(storeId) ?? [],
+          paused: group.expressPaused,
+          prepMinutes: group.expressPrepMinutes,
+          now,
+        });
+
+        if (!availability.available) {
+          // Só loja DENTRO do raio chega aqui — não polui o log com lojas longe.
+          console.warn(
+            `[uber-direct][auditoria] entrega expressa omitida para store ${storeId}: fora do horário (${availability.reason})`,
+          );
+          expressHint = getExpressUnavailableHint(availability);
+        } else {
+          const express = await quoteExpressDelivery(storeId, group.storeName, group.origin, destination);
+          if (express) options.push(express);
+        }
       }
     }
 
@@ -346,7 +395,7 @@ export async function calculateShippingForCart(
       }
     }
 
-    quotes.push({ storeId, storeName: group.storeName, options, error });
+    quotes.push({ storeId, storeName: group.storeName, options, error, expressHint });
   }
 
   return { success: true, quotes };

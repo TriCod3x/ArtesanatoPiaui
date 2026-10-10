@@ -138,6 +138,34 @@ export const EXPRESS_DELIVERY_MAX_KM = 30;
 // não está confirmado (a doc não publica) — perguntar ao suporte da Uber.
 export const EXPRESS_MAX_ITEM_WEIGHT_GRAMS = 20_000;
 
+// Quanto a recotação da Uber, feita na liberação da retirada (pode ser horas
+// depois do pagamento), pode passar do frete que o comprador pagou — em
+// centavos. Dentro disso a plataforma absorve a diferença e a corrida sai;
+// acima disso a corrida NÃO é criada e a liberação volta pra artesã.
+export const EXPRESS_REQUOTE_TOLERANCE_CENTS = 500;
+
+// Fuso fixo das lojas (todas no Piauí). O horário de funcionamento é sempre
+// avaliado nele via Intl — nunca o fuso do servidor: a Vercel roda em UTC.
+export const STORE_TIMEZONE = "America/Fortaleza";
+
+// Folga entre "pedido pronto" e o fechamento da loja: tempo pro motorista da
+// Uber chegar e retirar o pacote. A expressa só é oferecida se
+// agora + preparo + esta folga cabem antes do horário de fechar.
+export const EXPRESS_PICKUP_BUFFER_MINUTES = 20;
+
+export const EXPRESS_DEFAULT_PREP_MINUTES = 30;
+export const EXPRESS_PREP_MINUTES_OPTIONS = [15, 30, 45, 60] as const;
+
+export const WEEKDAY_LABELS = [
+  "Domingo",
+  "Segunda",
+  "Terça",
+  "Quarta",
+  "Quinta",
+  "Sexta",
+  "Sábado",
+] as const;
+
 // O marketplace só aceita LOJAS com endereço no Piauí. Não vale pra conta de
 // comprador: comprador de qualquer UF compra normalmente.
 export const STORE_REQUIRED_STATE = "PI";

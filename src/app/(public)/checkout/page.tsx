@@ -597,6 +597,9 @@ function CheckoutContent() {
                               })}
                             </div>
                           )}
+                          {q.expressHint && (
+                            <p className="text-xs text-muted-foreground mt-1.5">{q.expressHint}</p>
+                          )}
                           {/* Falha do Melhor Envio quando a entrega expressa cotou: vira aviso, não bloqueio. */}
                           {q.error && q.options.length > 0 && (
                             <p className="text-xs text-[#5A4632] dark:text-[#D9C4A0] mt-1.5">{q.error}</p>
