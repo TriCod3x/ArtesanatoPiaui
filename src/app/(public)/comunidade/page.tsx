@@ -5,45 +5,42 @@ import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 import { PostCard } from "@/components/community/PostCard";
 import { CreatePostForm } from "@/components/community/CreatePostForm";
-import type { PostWithRelations, PostAuthor } from "@/types";
+import { mergeFeed } from "@/lib/reposts";
+import {
+  POST_SELECT,
+  REPOST_SELECT,
+  toPostWithRelations,
+  type RawPostRow,
+  type RawRepostRow,
+} from "@/lib/community-posts";
+import type { FeedItem, PostAuthor } from "@/types";
 
 // Página sempre renderizada por requisição: depende do usuário logado
 // (formulário de novo post, "curti", produtos da loja). Nunca deve ser servida
 // de cache entre usuários.
 export const dynamic = "force-dynamic";
 
-interface RawPost {
-  id: string;
-  author_id: string;
-  content: string;
-  image_url: string | null;
-  product_id: string | null;
-  created_at: string;
-  author: PostAuthor | null;
-  product: PostWithRelations["product"];
-  likes: { user_id: string }[] | null;
-  comments: { id: string }[] | null;
-}
+// Quantos itens (posts + republicações juntos) o feed mostra.
+const FEED_LIMIT = 50;
 
 export default async function ComunidadePage() {
   const supabase = await createClient();
 
   const { data: { user } } = await supabase.auth.getUser();
 
-  const [postsRes, profileRes] = await Promise.all([
+  // Cada fonte já vem limitada a FEED_LIMIT: o top-N da união (por data do
+  // post ou da republicação) nunca precisa de mais que isso de cada lado.
+  const [postsRes, repostsRes, profileRes] = await Promise.all([
     supabase
       .from("community_posts")
-      .select(
-        `
-        *,
-        author:profiles(id, full_name, avatar_url),
-        product:products(id, name, slug, price, images:product_images(url, is_cover, position)),
-        likes:post_likes(user_id),
-        comments:post_comments(id)
-      `
-      )
+      .select(POST_SELECT)
       .order("created_at", { ascending: false })
-      .limit(50),
+      .limit(FEED_LIMIT),
+    supabase
+      .from("community_reposts")
+      .select(REPOST_SELECT)
+      .order("created_at", { ascending: false })
+      .limit(FEED_LIMIT),
     user
       ? supabase
           .from("profiles")
@@ -53,21 +50,32 @@ export default async function ComunidadePage() {
       : Promise.resolve({ data: null }),
   ]);
 
-  const posts: PostWithRelations[] = ((postsRes.data ?? []) as unknown as RawPost[]).map(
-    (post) => ({
-      id: post.id,
-      author_id: post.author_id,
-      content: post.content,
-      image_url: post.image_url,
-      product_id: post.product_id,
-      created_at: post.created_at,
-      author: post.author,
-      product: post.product ?? null,
-      likes_count: post.likes?.length ?? 0,
-      comments_count: post.comments?.length ?? 0,
-      liked_by_me: !!user && !!post.likes?.some((like) => like.user_id === user.id),
-    })
+  const userId = user?.id ?? null;
+
+  const postItems: FeedItem[] = ((postsRes.data ?? []) as unknown as RawPostRow[]).map((post) => ({
+    kind: "post",
+    key: `post-${post.id}`,
+    sortAt: post.created_at,
+    post: toPostWithRelations(post, userId),
+  }));
+
+  // Republicação aparece na data da republicação, com o post original dentro.
+  const repostItems: FeedItem[] = ((repostsRes.data ?? []) as unknown as RawRepostRow[]).flatMap(
+    (repost) =>
+      repost.post
+        ? [
+            {
+              kind: "repost" as const,
+              key: `repost-${repost.id}`,
+              sortAt: repost.created_at,
+              post: toPostWithRelations(repost.post, userId),
+              repostedBy: repost.reposter,
+            },
+          ]
+        : []
   );
+
+  const feed = mergeFeed([...postItems, ...repostItems], FEED_LIMIT);
 
   const profile = (profileRes.data ?? null) as PostAuthor | null;
 
@@ -130,7 +138,7 @@ export default async function ComunidadePage() {
             </div>
           )}
 
-          {posts.length === 0 ? (
+          {feed.length === 0 ? (
             <div
               className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] shadow-sm py-16 px-6 text-center"
               style={{ borderRadius: "16px" }}
@@ -147,9 +155,22 @@ export default async function ComunidadePage() {
             </div>
           ) : (
             <div className="flex flex-col gap-5">
-              {posts.map((post) => (
-                <PostCard key={post.id} post={post} currentUserId={user?.id ?? null} />
-              ))}
+              {feed.map((item) =>
+                item.kind === "repost" ? (
+                  <PostCard
+                    key={item.key}
+                    post={item.post}
+                    currentUserId={userId}
+                    repost={{
+                      by: item.repostedBy,
+                      at: item.sortAt,
+                      id: item.key.slice("repost-".length),
+                    }}
+                  />
+                ) : (
+                  <PostCard key={item.key} post={item.post} currentUserId={userId} />
+                )
+              )}
             </div>
           )}
         </div>

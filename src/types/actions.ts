@@ -10,6 +10,8 @@
 import type { ShippingCarrier } from "@/types";
 import type { StoreShippingQuote } from "@/lib/shipping-quotes";
 import type { StoreHoursInputDay } from "@/lib/store-hours";
+import type { ProductWithRelations, OrderStatus } from "@/types";
+import type { UnavailableReason } from "@/lib/reorder";
 
 export interface ProductSearchResult {
   id: string;
@@ -73,3 +75,42 @@ export interface ExpressSettingsInput {
 export type ReleaseExpressPickupResult =
   | { error: string }
   | { success: true; alreadyReleased?: boolean; fallbackToMelhorEnvio?: boolean };
+
+export interface MentionableResult {
+  id: string;
+  /** Mesmos valores do token no texto: @[Nome](user:ID) / @[Nome](store:ID). */
+  tipo: "user" | "store";
+  nome: string;
+  /** Avatar do usuário ou logo da loja. */
+  avatar: string | null;
+}
+
+export type SearchMentionablesResult = { error: string } | { results: MentionableResult[] };
+
+export type ToggleRepostResult =
+  | { error: string }
+  | { success: true; reposted: boolean; count: number };
+
+/** Um pedido do comprador, resumido pro histórico do carrinho. */
+export interface BuyerOrderSummary {
+  id: string;
+  createdAt: string;
+  status: OrderStatus;
+  totalAmount: number;
+  storeNames: string[];
+  itemCount: number;
+  /** Até 3 itens, pra miniaturas. */
+  previewItems: { name: string; imageUrl: string | null }[];
+  extraItems: number;
+}
+
+export type BuyerOrderHistoryResult =
+  | { error: string; unauthenticated?: boolean }
+  | { orders: BuyerOrderSummary[]; hasMore: boolean };
+
+export type ReorderItemsResult =
+  | { error: string; unauthenticated?: boolean }
+  | {
+      items: { product: ProductWithRelations; quantity: number; requestedQuantity: number }[];
+      unavailable: { name: string; reason: UnavailableReason }[];
+    };

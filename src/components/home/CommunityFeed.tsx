@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { RelativeTime } from "@/components/shared/RelativeTime";
+import { mentionsToPlainText } from "@/lib/mentions";
 import type { PostWithRelations } from "@/types";
 
 interface CommunityFeedProps {
@@ -28,16 +29,18 @@ export function CommunityFeed({ posts }: CommunityFeedProps) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {posts.map((post) => (
+        {posts.map((post) => {
+          const cover = post.images?.[0] ?? post.image_url;
+          return (
           <Link
             key={post.id}
             href={`/comunidade#post-${post.id}`}
             className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] rounded-2xl overflow-hidden hover:shadow-md hover:border-terracota/30 transition-all block"
           >
-            {post.image_url && (
+            {cover && (
               <div className="relative w-full" style={{ height: "200px" }}>
                 <Image
-                  src={post.image_url}
+                  src={cover}
                   alt="Post da comunidade"
                   fill
                   className="object-cover"
@@ -70,11 +73,12 @@ export function CommunityFeed({ posts }: CommunityFeedProps) {
                 </div>
               </div>
               <p className="text-sm text-dark dark:text-[#c4a882] leading-relaxed line-clamp-3">
-                {post.content}
+                {mentionsToPlainText(post.content)}
               </p>
             </div>
           </Link>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

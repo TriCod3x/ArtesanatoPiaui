@@ -57,13 +57,37 @@ export interface PostProductRef {
   images?: { url: string; is_cover?: boolean; position?: number }[]
 }
 
+/** Marcação (@) já validada no servidor; só o que o leitor precisa pra montar o link. */
+export interface PostMention {
+  kind: "user" | "store"
+  id: string
+  /** Só pra loja: slug pra montar /lojas/<slug>. Ausente se a loja não estiver visível. */
+  storeSlug?: string | null
+}
+
 export interface PostWithRelations extends CommunityPost {
   author?: PostAuthor | null
   product?: PostProductRef | null
   likes_count: number
   comments_count: number
   liked_by_me: boolean
+  /** Imagens na ordem de exibição (community_post_images, ou o image_url antigo). */
+  images?: string[]
+  reposts_count?: number
+  reposted_by_me?: boolean
+  mentions?: PostMention[]
 }
+
+/** Item do feed da Comunidade: um post, ou uma republicação (post original dentro). */
+export type FeedItem =
+  | { kind: "post"; key: string; sortAt: string; post: PostWithRelations }
+  | {
+      kind: "repost"
+      key: string
+      sortAt: string
+      post: PostWithRelations
+      repostedBy: PostAuthor | null
+    }
 
 export interface CommentWithAuthor extends PostComment {
   author?: PostAuthor | null

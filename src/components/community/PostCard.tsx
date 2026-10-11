@@ -3,16 +3,20 @@
 import { useState, useTransition } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Heart, MessageCircle, Link2, Trash2, Loader2, Send } from "lucide-react";
+import { Heart, MessageCircle, Link2, Trash2, Loader2, Send, Repeat2 } from "lucide-react";
 import { toast } from "sonner";
-import { toggleLike, addComment, getComments, deletePost } from "@/actions/community";
+import { toggleLike, toggleRepost, addComment, getComments, deletePost } from "@/actions/community";
 import { cn, formatPrice } from "@/lib/utils";
 import { RelativeTime } from "@/components/shared/RelativeTime";
-import type { PostWithRelations, CommentWithAuthor } from "@/types";
+import { PostImages } from "@/components/community/PostImages";
+import { PostText } from "@/components/community/PostText";
+import type { PostWithRelations, CommentWithAuthor, PostAuthor } from "@/types";
 
 interface PostCardProps {
   post: PostWithRelations;
   currentUserId?: string | null;
+  /** Quando o card é uma republicação: quem republicou e quando. */
+  repost?: { by: PostAuthor | null; at: string; id: string };
 }
 
 function Avatar({
@@ -40,10 +44,13 @@ function Avatar({
   );
 }
 
-export function PostCard({ post, currentUserId }: PostCardProps) {
+export function PostCard({ post, currentUserId, repost }: PostCardProps) {
   const [liked, setLiked] = useState(post.liked_by_me);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [bump, setBump] = useState(false);
+
+  const [reposted, setReposted] = useState(!!post.reposted_by_me);
+  const [repostsCount, setRepostsCount] = useState(post.reposts_count ?? 0);
 
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<CommentWithAuthor[] | null>(null);
@@ -81,6 +88,33 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
       }
       setLiked(!!result.liked);
       setLikesCount(result.count ?? previousCount);
+    });
+  };
+
+  const handleRepost = () => {
+    if (!currentUserId) {
+      toast.error("Entre na sua conta para republicar.");
+      return;
+    }
+
+    const previousReposted = reposted;
+    const previousCount = repostsCount;
+
+    // Estado otimista, como na curtida.
+    setReposted(!previousReposted);
+    setRepostsCount(Math.max(0, previousCount + (previousReposted ? -1 : 1)));
+
+    startTransition(async () => {
+      const result = await toggleRepost(post.id);
+      if ("error" in result) {
+        setReposted(previousReposted);
+        setRepostsCount(previousCount);
+        toast.error(result.error);
+        return;
+      }
+      setReposted(result.reposted);
+      setRepostsCount(result.count);
+      toast.success(result.reposted ? "Post republicado!" : "Republicação desfeita.");
     });
   };
 
@@ -142,10 +176,20 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
 
   return (
     <article
-      id={`post-${post.id}`}
+      id={repost ? `repost-${repost.id}` : `post-${post.id}`}
       className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden"
       style={{ borderRadius: "16px" }}
     >
+      {repost && (
+        <div className="flex items-center gap-2 px-4 pt-3 text-xs font-semibold text-muted-foreground">
+          <Repeat2 size={14} className="text-terracota flex-shrink-0" />
+          <span className="truncate">
+            {repost.by?.full_name ?? "Alguém"} republicou
+          </span>
+          <RelativeTime className="font-normal" date={repost.at} />
+        </div>
+      )}
+
       {/* Autor */}
       <header className="flex items-center gap-3 p-4 pb-3">
         <Avatar name={authorName} url={post.author?.avatar_url} />
@@ -167,26 +211,14 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
       </header>
 
       {/* Texto */}
-      <p className="px-4 pb-3 text-[15px] leading-relaxed text-dark dark:text-[#f5edd6] whitespace-pre-wrap break-words">
-        {post.content}
-      </p>
+      <PostText
+        content={post.content}
+        mentions={post.mentions}
+        className="px-4 pb-3 text-[15px] leading-relaxed text-dark dark:text-[#f5edd6] whitespace-pre-wrap break-words"
+      />
 
-      {/* Imagem */}
-      {post.image_url && (
-        <div className="px-4 pb-3">
-          <div className="relative rounded-xl overflow-hidden bg-cream dark:bg-[#3d2c1a]">
-            <Image
-              src={post.image_url}
-              alt="Imagem do post"
-              width={1200}
-              height={900}
-              className="w-full h-auto object-contain"
-              style={{ maxHeight: "480px" }}
-              sizes="(max-width: 768px) 100vw, 640px"
-            />
-          </div>
-        </div>
-      )}
+      {/* Imagens */}
+      <PostImages images={post.images ?? (post.image_url ? [post.image_url] : [])} />
 
       {/* Produto vinculado */}
       {post.product && (
@@ -241,6 +273,32 @@ export function PostCard({ post, currentUserId }: PostCardProps) {
           <MessageCircle size={17} />
           <span>{commentsCount > 0 ? `${commentsCount} ` : ""}Comentar</span>
         </button>
+
+        {!isOwner && (
+          <button
+            onClick={handleRepost}
+            aria-pressed={reposted}
+            title={reposted ? "Desfazer republicação" : "Republicar"}
+            className={cn(
+              "flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors cursor-pointer active:scale-95",
+              reposted
+                ? "text-terracota bg-terracota/10"
+                : "text-muted-foreground hover:text-terracota hover:bg-terracota/5"
+            )}
+          >
+            <Repeat2 size={17} />
+            <span>
+              {repostsCount > 0 ? `${repostsCount} ` : ""}
+              {reposted ? "Republicado" : "Republicar"}
+            </span>
+          </button>
+        )}
+        {isOwner && repostsCount > 0 && (
+          <span className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
+            <Repeat2 size={17} />
+            {repostsCount}
+          </span>
+        )}
 
         <button
           onClick={handleShare}

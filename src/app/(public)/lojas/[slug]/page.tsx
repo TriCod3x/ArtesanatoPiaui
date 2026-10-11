@@ -13,12 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { formatWhatsApp, cn } from "@/lib/utils";
 import { Calendar, MapPin, Star } from "lucide-react";
 import { LikeButton } from "@/components/community/LikeButton";
-import type {
-  StoreWithContacts,
-  ProductWithRelations,
-  PostWithRelations,
-  PostAuthor,
-} from "@/types";
+import { POST_SELECT, toPostWithRelations, type RawPostRow } from "@/lib/community-posts";
+import type { StoreWithContacts, ProductWithRelations, PostWithRelations } from "@/types";
 
 const WhatsAppIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
@@ -53,19 +49,6 @@ interface CategoryRef {
   id: string;
   name: string;
   slug: string;
-}
-
-interface RawPost {
-  id: string;
-  author_id: string;
-  content: string;
-  image_url: string | null;
-  product_id: string | null;
-  created_at: string;
-  author: PostAuthor | null;
-  product: PostWithRelations["product"];
-  likes: { user_id: string }[] | null;
-  comments: { id: string }[] | null;
 }
 
 function monthYear(iso: string): string {
@@ -172,31 +155,13 @@ export default async function LojaPage({
   if (activeTab === "posts") {
     const { data } = await supabase
       .from("community_posts")
-      .select(
-        `
-        *,
-        author:profiles(id, full_name, avatar_url),
-        product:products(id, name, slug, price, images:product_images(url, is_cover, position)),
-        likes:post_likes(user_id),
-        comments:post_comments(id)
-        `,
-      )
+      .select(POST_SELECT)
       .eq("author_id", store.owner_id)
       .order("created_at", { ascending: false });
 
-    posts = ((data ?? []) as unknown as RawPost[]).map((post) => ({
-      id: post.id,
-      author_id: post.author_id,
-      content: post.content,
-      image_url: post.image_url,
-      product_id: post.product_id,
-      created_at: post.created_at,
-      author: post.author,
-      product: post.product ?? null,
-      likes_count: post.likes?.length ?? 0,
-      comments_count: post.comments?.length ?? 0,
-      liked_by_me: !!user && !!post.likes?.some((like) => like.user_id === user.id),
-    }));
+    posts = ((data ?? []) as unknown as RawPostRow[]).map((post) =>
+      toPostWithRelations(post, user?.id ?? null),
+    );
   }
 
   const reviewsAverage = reviews.length

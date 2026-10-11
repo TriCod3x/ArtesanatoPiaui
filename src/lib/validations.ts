@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isValidCPF, isValidCNPJ, onlyDigits } from "@/lib/utils";
 import { STORE_REQUIRED_STATE } from "@/lib/constants";
 import { getMobilePhoneError } from "@/lib/phone";
+import { checkPostTextLength } from "@/lib/mentions";
 
 export const signInSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -64,6 +65,19 @@ export const postSchema = z.object({
     .trim()
     .min(3, "Escreva pelo menos 3 caracteres")
     .max(1000, "Máximo de 1000 caracteres"),
+  product_id: z.string().uuid("Produto inválido").optional().or(z.literal("")),
+});
+
+// Formulário de novo post: o texto pode conter tokens de marcação
+// (@[Nome](user:ID)), então o limite de 1000 caracteres mede o texto VISÍVEL.
+export const postFormSchema = z.object({
+  content: z
+    .string()
+    .trim()
+    .superRefine((value, ctx) => {
+      const message = checkPostTextLength(value);
+      if (message) ctx.addIssue({ code: "custom", message });
+    }),
   product_id: z.string().uuid("Produto inválido").optional().or(z.literal("")),
 });
 
@@ -210,5 +224,6 @@ export type SignUpInput = z.infer<typeof signUpSchema>;
 export type StoreInput = z.infer<typeof storeSchema>;
 export type ProductInput = z.infer<typeof productSchema>;
 export type PostInput = z.infer<typeof postSchema>;
+export type PostFormInput = z.infer<typeof postFormSchema>;
 export type CommentInput = z.infer<typeof commentSchema>;
 export type ProfileInput = z.infer<typeof profileSchema>;

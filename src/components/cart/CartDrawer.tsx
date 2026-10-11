@@ -7,10 +7,12 @@ import { formatPrice } from "@/lib/utils";
 import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { CartOrdersTab } from "@/components/cart/CartOrdersTab";
 
 export function CartDrawer() {
   const { items, isOpen, closeCart, remove, updateQuantity, total, count } = useCart();
+  const [tab, setTab] = useState<"carrinho" | "pedidos">("carrinho");
 
   useEffect(() => {
     if (isOpen) {
@@ -56,8 +58,44 @@ export function CartDrawer() {
           </button>
         </div>
 
+        {/* Abas */}
+        <div role="tablist" className="flex border-b border-border dark:border-[#3d2c1a]">
+          {(
+            [
+              ["carrinho", "Carrinho"],
+              ["pedidos", "Pedidos"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={`flex-1 py-3 text-sm font-semibold transition-colors cursor-pointer border-b-2 ${
+                tab === key
+                  ? "text-terracota border-terracota"
+                  : "text-muted-foreground border-transparent hover:text-dark dark:hover:text-[#f5edd6]"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Pedidos */}
+        <div className={`flex-1 overflow-y-auto px-6 py-4 ${tab === "pedidos" ? "" : "hidden"}`}>
+          <CartOrdersTab
+            active={isOpen && tab === "pedidos"}
+            onNavigate={closeCart}
+            onShowCart={() => setTab("carrinho")}
+          />
+        </div>
+
         {/* Items */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div
+          className={`flex-1 overflow-y-auto px-6 py-4 space-y-4 ${tab === "carrinho" ? "" : "hidden"}`}
+        >
           {items.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center py-16 text-muted-foreground">
               <ShoppingBag size={48} className="mb-4 opacity-20" />
@@ -113,7 +151,7 @@ export function CartDrawer() {
         </div>
 
         {/* Footer */}
-        {items.length > 0 && (
+        {tab === "carrinho" && items.length > 0 && (
           <div className="border-t border-border dark:border-[#3d2c1a] px-6 py-5 space-y-4 bg-white dark:bg-[#2a1e0f]">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground text-sm">Subtotal</span>

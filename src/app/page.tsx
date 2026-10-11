@@ -7,6 +7,7 @@ import { FeaturedProducts } from "@/components/home/FeaturedProducts";
 import { FeaturedStores } from "@/components/home/FeaturedStores";
 import { CommunityFeed } from "@/components/home/CommunityFeed";
 import { MIN_ACTIVE_PRODUCTS_FOR_HOME_STATS } from "@/lib/constants";
+import { resolvePostImages } from "@/lib/post-images";
 import type { ProductWithRelations, StoreWithContacts, PostWithRelations } from "@/types";
 
 export default async function HomePage() {
@@ -36,7 +37,7 @@ export default async function HomePage() {
       .order("total_sales", { ascending: false }),
     supabase
       .from("community_posts")
-      .select(`*, author:profiles(id, full_name, avatar_url)`)
+      .select(`*, author:profiles(id, full_name, avatar_url), images:community_post_images(url, position)`)
       .order("created_at", { ascending: false })
       .limit(6),
     supabase.from("stores").select("id", { count: "exact", head: true }).eq("status", "active"),
@@ -53,7 +54,12 @@ export default async function HomePage() {
 
   const products = (productsRes.data ?? []) as unknown as ProductWithRelations[];
   const stores = (storesRes.data ?? []) as unknown as StoreWithContacts[];
-  const posts = (postsRes.data ?? []) as unknown as PostWithRelations[];
+  const posts = ((postsRes.data ?? []) as unknown as (PostWithRelations & {
+    images: { url: string; position: number }[] | null;
+  })[]).map((post) => ({
+    ...post,
+    images: resolvePostImages(post.images, post.image_url),
+  })) as PostWithRelations[];
 
   const activeProductsCount = productsCountRes.count ?? 0;
   const distinctCitiesCount = new Set(

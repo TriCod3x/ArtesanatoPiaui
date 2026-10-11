@@ -10,35 +10,9 @@ import { RelativeTime } from "@/components/shared/RelativeTime";
 import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import { getBuyerOrderStatus, getBuyerOrderStatusLabel, BUYER_ORDER_STATUS_CLASS } from "@/lib/order-status";
 import { ReviewForm } from "@/components/orders/ReviewForm";
-import type { OrderStatus } from "@/types";
+import { BUYER_ORDERS_SELECT, type BuyerOrderRow } from "@/lib/buyer-orders";
 
 export const dynamic = "force-dynamic";
-
-interface OrderItemRow {
-  id: string;
-  quantity: number;
-  unit_price: number;
-  subtotal: number;
-  item_status: string;
-  product: { name: string; slug: string; images: { url: string; is_cover: boolean }[] } | null;
-}
-
-interface ShipmentRow {
-  store_id: string;
-  service_name: string | null;
-  status: string;
-  tracking_code: string | null;
-  store: { name: string } | null;
-}
-
-interface OrderRow {
-  id: string;
-  status: OrderStatus;
-  total_amount: number;
-  created_at: string;
-  items: OrderItemRow[];
-  shipments: ShipmentRow[];
-}
 
 export default async function PedidosPage() {
   const supabase = await createClient();
@@ -50,20 +24,11 @@ export default async function PedidosPage() {
 
   const { data } = await supabase
     .from("orders")
-    .select(
-      `
-      id, status, total_amount, created_at,
-      items:order_items(
-        id, quantity, unit_price, subtotal, item_status,
-        product:products(name, slug, images:product_images(url, is_cover))
-      ),
-      shipments(store_id, service_name, status, tracking_code, store:stores(name))
-    `,
-    )
+    .select(BUYER_ORDERS_SELECT)
     .eq("buyer_id", user.id)
     .order("created_at", { ascending: false });
 
-  const orders = (data ?? []) as unknown as OrderRow[];
+  const orders = (data ?? []) as unknown as BuyerOrderRow[];
 
   const deliveredItemIds = orders
     .flatMap((o) => o.items)
@@ -117,6 +82,7 @@ export default async function PedidosPage() {
               {orders.map((order) => (
                 <article
                   key={order.id}
+                  id={`pedido-${order.id}`}
                   className="bg-white dark:bg-[#2a1e0f] border border-border dark:border-[#3d2c1a] shadow-sm p-5"
                   style={{ borderRadius: "16px" }}
                 >
