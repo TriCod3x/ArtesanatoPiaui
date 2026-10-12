@@ -24,6 +24,8 @@ import { CardCheckoutButton } from "@/components/checkout/CardCheckoutButton";
 import { CheckoutStepper, type CheckoutStep } from "@/components/checkout/CheckoutStepper";
 import { OrderSummary } from "@/components/checkout/OrderSummary";
 import type { PaymentMethod, PaymentStatus, ShippingOption, StorePaymentResult } from "@/types";
+import { useStoresWithoutPayments } from "@/hooks/useStoresWithoutPayments";
+import { STORE_WITHOUT_PAYMENTS_LABEL } from "@/lib/store-payments";
 
 const EMPTY_ADDRESS: ShippingAddressInput = {
   recipient_name: "",
@@ -113,6 +115,11 @@ function CheckoutContent() {
     ),
   );
 
+  // Lojas do carrinho sem Mercado Pago: bloqueiam o pagamento (o servidor
+  // também recusa no createOrder — isto é só pra avisar antes).
+  const storesWithoutPayments = useStoresWithoutPayments(groups.map((g) => g.storeId));
+  const blockedGroups = groups.filter((g) => storesWithoutPayments.has(g.storeId));
+
   /**
    * Recota o frete de todas as lojas. Cidade/UF decidem se a loja oferece
    * entrega expressa, e rua/número vão pra cotação da Uber Direct — por isso
@@ -189,7 +196,9 @@ function CheckoutContent() {
   const phoneError = address.recipient_phone.trim() ? getMobilePhoneError(address.recipient_phone) : null;
   const shippingSelectedForAll = !!quotes && groups.every((g) => !!selectedShipping[g.storeId]);
   const currentStep: CheckoutStep = !addressValid ? "endereco" : !shippingSelectedForAll ? "entrega" : "pagamento";
-  const payDisabledReason = !addressValid
+  const payDisabledReason = blockedGroups.length > 0
+    ? `${STORE_WITHOUT_PAYMENTS_LABEL}. Remova os itens dela do carrinho para continuar`
+    : !addressValid
     ? "Preencha o endereço de entrega para continuar"
     : !quotes
       ? "Aguardando o cálculo do frete"
@@ -199,6 +208,10 @@ function CheckoutContent() {
   const addressResolved = manualAddress ? false : !!address.address_city;
 
   const runCheckout = async (selectedMethod: PaymentMethod) => {
+    if (!orderId && blockedGroups.length > 0) {
+      setFormError(`${STORE_WITHOUT_PAYMENTS_LABEL}: ${blockedGroups.map((g) => g.storeName).join(", ")}.`);
+      return;
+    }
     const addressParsed = shippingAddressSchema.safeParse(address);
     if (!addressParsed.success) {
       setFormError(addressParsed.error.issues[0]?.message ?? "Preencha o endereço de entrega.");
@@ -384,6 +397,19 @@ function CheckoutContent() {
             <div className="grid lg:grid-cols-[1fr_360px] gap-6 items-start">
               <div className="min-w-0">
                 <CheckoutStepper current={currentStep} />
+
+                {blockedGroups.length > 0 && (
+                  <div
+                    role="alert"
+                    className="mb-5 bg-destructive/10 border border-destructive/20 text-destructive text-sm rounded-xl px-4 py-3"
+                  >
+                    <p className="font-semibold">{STORE_WITHOUT_PAYMENTS_LABEL}</p>
+                    <p className="mt-1">
+                      {blockedGroups.map((g) => g.storeName).join(", ")}: remova os itens dessa loja do carrinho
+                      para finalizar a compra.
+                    </p>
+                  </div>
+                )}
 
                 {/* Resumo colapsável — só no mobile, onde não há coluna lateral fixa. */}
                 <button

@@ -69,6 +69,24 @@ export async function getStoreCredentialsByStoreIds(
   return map;
 }
 
+/** Só os IDs das lojas conectadas (sem token) — pra regras de checkout/UI. */
+export async function getConnectedStoreIds(
+  storeIds: string[],
+  provider: IntegrationProvider,
+): Promise<Set<string>> {
+  if (storeIds.length === 0) return new Set();
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("store_integration_credentials")
+    .select("store_id")
+    .in("store_id", storeIds)
+    .eq("provider", provider);
+  // Falha de leitura não pode virar "ninguém conectado" nem "todos conectados":
+  // quem chama decide o que fazer com o erro.
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((r) => r.store_id));
+}
+
 /** Status de conexão pra UI — nunca retorna o token em si. */
 export async function isStoreConnected(storeId: string, provider: IntegrationProvider): Promise<boolean> {
   const admin = createAdminClient();

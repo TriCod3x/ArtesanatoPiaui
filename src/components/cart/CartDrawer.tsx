@@ -7,12 +7,21 @@ import { formatPrice } from "@/lib/utils";
 import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CartOrdersTab } from "@/components/cart/CartOrdersTab";
+import { useStoresWithoutPayments } from "@/hooks/useStoresWithoutPayments";
+import { STORE_WITHOUT_PAYMENTS_LABEL } from "@/lib/store-payments";
 
 export function CartDrawer() {
   const { items, isOpen, closeCart, remove, updateQuantity, total, count } = useCart();
   const [tab, setTab] = useState<"carrinho" | "pedidos">("carrinho");
+  const storeIds = useMemo(
+    () => items.map((i) => i.product.store?.id).filter((id): id is string => !!id),
+    [items],
+  );
+  // Só consulta com o carrinho aberto — o drawer existe em todas as páginas.
+  const storesWithoutPayments = useStoresWithoutPayments(isOpen ? storeIds : []);
+  const hasBlockedItems = storesWithoutPayments.size > 0;
 
   useEffect(() => {
     if (isOpen) {
@@ -118,6 +127,9 @@ export function CartDrawer() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-dark dark:text-[#f5edd6] leading-tight line-clamp-2">{product.name}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">{product.store?.name}</p>
+                    {product.store?.id && storesWithoutPayments.has(product.store.id) && (
+                      <p className="text-xs font-medium text-destructive mt-0.5">{STORE_WITHOUT_PAYMENTS_LABEL}</p>
+                    )}
                     <p className="text-terracota font-bold text-sm mt-1">{formatPrice(product.price)}</p>
                   </div>
                   <div className="flex flex-col items-end justify-between flex-shrink-0">
@@ -158,11 +170,22 @@ export function CartDrawer() {
               <span className="font-bold text-dark dark:text-[#f5edd6] text-lg">{formatPrice(total)}</span>
             </div>
             <p className="text-xs text-muted-foreground">Frete calculado no checkout</p>
-            <Link href="/checkout" onClick={closeCart} className="block">
-              <Button className="w-full bg-terracota hover:bg-terracota/90 text-white font-semibold h-11">
-                Finalizar compra
-              </Button>
-            </Link>
+            {hasBlockedItems ? (
+              <>
+                <p className="text-xs text-destructive">
+                  Remova do carrinho os itens das lojas que ainda não recebem pagamentos para finalizar a compra.
+                </p>
+                <Button disabled className="w-full bg-terracota text-white font-semibold h-11">
+                  Finalizar compra
+                </Button>
+              </>
+            ) : (
+              <Link href="/checkout" onClick={closeCart} className="block">
+                <Button className="w-full bg-terracota hover:bg-terracota/90 text-white font-semibold h-11">
+                  Finalizar compra
+                </Button>
+              </Link>
+            )}
             <button
               onClick={closeCart}
               className="w-full text-sm text-muted-foreground hover:text-dark dark:hover:text-[#f5edd6] transition-colors"

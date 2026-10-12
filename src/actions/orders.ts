@@ -6,6 +6,8 @@ import { shippingAddressSchema, type ShippingAddressInput } from "@/lib/validati
 import { onlyDigits } from "@/lib/utils";
 import { quoteShippingForCart } from "@/lib/shipping-quotes";
 import { matchSelectionToQuotes, validateShippingSelection } from "@/lib/shipping-validation";
+import { getConnectedStoreIds } from "@/lib/store-credentials";
+import { findStoresWithoutPayments, storeWithoutPaymentsMessage } from "@/lib/store-payments";
 import type { CheckoutItemInput, SelectedShippingInput, ShippingChangedError } from "@/types/actions";
 
 /**
@@ -48,7 +50,7 @@ export async function createOrder(
   const productIds = items.map((i) => i.productId);
   const { data: products } = await admin
     .from("products")
-    .select("id, name, price, stock, status, store_id, stores!inner(status)")
+    .select("id, name, price, stock, status, store_id, stores!inner(status, name)")
     .in("id", productIds);
 
   if (!products || products.length !== productIds.length) {
@@ -81,6 +83,26 @@ export async function createOrder(
   });
 
   const storeIds = [...new Set(orderItems.map((i) => i.store_id))];
+
+  // Loja sem Mercado Pago conectado não vende: sem credencial não há como
+  // cobrar nem repassar, então o pedido nem chega a ser criado. Validado aqui
+  // (servidor); o aviso do carrinho/checkout é só cortesia de UI.
+  let connectedStoreIds: Set<string>;
+  try {
+    connectedStoreIds = await getConnectedStoreIds(storeIds, "mercadopago");
+  } catch (err) {
+    console.error("[orders] não foi possível verificar o Mercado Pago das lojas:", err);
+    return { error: "Não foi possível confirmar os pagamentos das lojas agora. Tente novamente em instantes." };
+  }
+  const withoutPayments = findStoresWithoutPayments(storeIds, connectedStoreIds);
+  if (withoutPayments.length > 0) {
+    const names = withoutPayments.map((id) => {
+      const product = products.find((p) => p.store_id === id);
+      return (product?.stores as unknown as { name?: string } | null)?.name ?? "Loja";
+    });
+    return { error: storeWithoutPaymentsMessage(names) };
+  }
+
   // Frete, etapa 1 (estrutural): uma opção por loja do carrinho, nenhuma de
   // fora, nenhuma duplicada, preço mostrado > 0.
   const structural = validateShippingSelection(storeIds, selectedShipping);

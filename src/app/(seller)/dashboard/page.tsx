@@ -1,10 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { Package, ShoppingBag, DollarSign, Star, AlertCircle, Plus, ExternalLink, Clock, XCircle } from "lucide-react";
+import { Package, ShoppingBag, DollarSign, Star, AlertCircle, Plus, ExternalLink, Clock, XCircle, CheckCircle2, Circle, CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/utils";
 import type { DocumentStatus } from "@/types";
+import { isStoreConnected } from "@/lib/store-credentials";
+import { buildOnboardingChecklist, isOnboardingComplete } from "@/lib/seller-onboarding";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -46,6 +48,25 @@ export default async function DashboardPage() {
     .eq("status", "active");
 
   const hasProducts = (productCount ?? 0) > 0;
+
+  // Checklist "Para começar a vender". O 3º passo conta produto em qualquer
+  // status (rascunho também): a vendedora já cadastrou, não precisa refazer.
+  const { count: anyProductCount } = await supabase
+    .from("products")
+    .select("*", { count: "exact", head: true })
+    .eq("store_id", store.id);
+  const [mercadoPagoConnected, melhorEnvioConnected] = await Promise.all([
+    isStoreConnected(store.id, "mercadopago"),
+    isStoreConnected(store.id, "melhorenvio"),
+  ]);
+  const onboardingSteps = buildOnboardingChecklist({
+    mercadoPagoConnected,
+    melhorEnvioConnected,
+    hasProducts: (anyProductCount ?? 0) > 0,
+  });
+  const showOnboarding = !isOnboardingComplete(onboardingSteps);
+  const onboardingDone = onboardingSteps.filter((s) => s.done).length;
+  const isStoreActive = store.status === "active";
 
   // "Pedidos pendentes" não contava nada de verdade — era um placeholder
   // fixo em 0. Itens 'confirmed' (pagos, ainda não entregues) são os que o
@@ -173,6 +194,53 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      {/* Para começar a vender — some quando os 3 passos estão feitos */}
+      {showOnboarding && (
+        <section
+          aria-labelledby="onboarding-title"
+          className="bg-white dark:bg-[#2a1e0f] rounded-2xl border border-border dark:border-[#3d2c1a] p-6 mb-8"
+        >
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 id="onboarding-title" className="font-display text-xl font-bold text-dark dark:text-[#f5edd6]">
+              Para começar a vender
+            </h2>
+            <span className="text-sm text-muted-foreground">{onboardingDone} de {onboardingSteps.length}</span>
+          </div>
+          <ol className="space-y-3">
+            {onboardingSteps.map((step) => {
+              const needsApproval = !isStoreActive && step.key !== "product";
+              return (
+                <li
+                  key={step.key}
+                  className="flex items-start gap-3 rounded-xl border border-border dark:border-[#3d2c1a] p-4"
+                >
+                  {step.done ? (
+                    <CheckCircle2 size={22} className="text-capim shrink-0 mt-0.5" aria-label="Feito" />
+                  ) : (
+                    <Circle size={22} className="text-muted-foreground shrink-0 mt-0.5" aria-label="Pendente" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-semibold ${step.done ? "text-muted-foreground line-through" : "text-dark dark:text-[#f5edd6]"}`}>
+                      {step.title}
+                    </p>
+                    {!step.done && (
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {needsApproval ? "Disponível depois que sua loja for aprovada." : step.description}
+                      </p>
+                    )}
+                  </div>
+                  {!step.done && (
+                    <Link href={step.href} className="shrink-0">
+                      <Button size="sm" className="bg-terracota hover:bg-terracota/90 text-white">{step.cta}</Button>
+                    </Link>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
+
       {/* Stats cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-10">
         {[
@@ -246,11 +314,12 @@ export default async function DashboardPage() {
       )}
 
       {/* Quick links */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { href: "/meus-produtos", label: "Gerenciar produtos", icon: Package },
           { href: "/minha-loja", label: "Editar loja", icon: ShoppingBag },
           { href: "/minha-loja/pedidos", label: "Ver pedidos", icon: DollarSign },
+          { href: "/minha-loja/pagamentos", label: "Pagamentos e envio", icon: CreditCard },
         ].map((item) => (
           <Link
             key={item.href}
