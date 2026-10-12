@@ -38,7 +38,6 @@ export async function updateProfile(data: ProfileInput) {
       full_name,
       city: city ? city : null,
       avatar_url: avatar_url ? avatar_url : null,
-      updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);
 

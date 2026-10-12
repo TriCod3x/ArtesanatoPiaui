@@ -2,10 +2,13 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { MessageCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { Header } from "@/components/layout/Header";
 import { Avatar } from "@/components/shared/Avatar";
 import { RelativeTime } from "@/components/shared/RelativeTime";
 import { MessageThread, type ThreadMessage, type ThreadProduct } from "@/components/messages/MessageThread";
+import { ConversationsRealtime } from "@/components/messages/ConversationsRealtime";
+import { shouldWarnUnknownBuyer } from "@/lib/chat";
 import { getConversations } from "@/actions/messages";
 import { cn } from "@/lib/utils";
 import type { ConversationSummary } from "@/types";
@@ -21,6 +24,9 @@ interface ThreadData {
   otherAvatar: string | null;
   product: ThreadProduct | null;
   messages: ThreadMessage[];
+  blockedByMe: boolean;
+  warnUnknownBuyer: boolean;
+  orderLabel: string | null;
 }
 
 async function getThreadData(
@@ -33,7 +39,7 @@ async function getThreadData(
     .from("conversations")
     .select(
       `
-      id, buyer_id,
+      id, buyer_id, store_id, order_id,
       store:stores(name, logo_url, owner_id),
       buyer:profiles!conversations_buyer_id_fkey(full_name, avatar_url),
       product:products(name, slug, price, images:product_images(url, is_cover, position))
@@ -67,6 +73,38 @@ async function getThreadData(
   const isParticipant = iAmBuyer || store?.owner_id === currentUserId;
   if (!isParticipant) return null;
 
+  const otherUserId = iAmBuyer ? store?.owner_id : conversation.buyer_id;
+
+  // Eu bloqueei o outro lado? (a RLS de chat_blocks só mostra os MEUS bloqueios.)
+  let blockedByMe = false;
+  if (otherUserId) {
+    const { data: block } = await supabase
+      .from("chat_blocks")
+      .select("id")
+      .eq("blocker_id", currentUserId)
+      .eq("blocked_id", otherUserId)
+      .maybeSingle();
+    blockedByMe = !!block;
+  }
+
+  // Aviso pra loja: comprador sem pedido pago nela. Leitura via service role
+  // (o vendedor não enxerga pedidos de outro comprador pela RLS), só depois de
+  // confirmado que o usuário é participante.
+  let warnUnknownBuyer = false;
+  if (!iAmBuyer) {
+    const { data: paidItems } = await createAdminClient()
+      .from("order_items")
+      .select("id, order:orders!inner(buyer_id)")
+      .eq("store_id", conversation.store_id)
+      .eq("order.buyer_id", conversation.buyer_id)
+      .in("item_status", ["confirmed", "shipped", "delivered"])
+      .limit(1);
+    warnUnknownBuyer = shouldWarnUnknownBuyer({
+      viewerIsStoreOwner: true,
+      buyerHasPaidOrderAtStore: (paidItems?.length ?? 0) > 0,
+    });
+  }
+
   const { data: messagesData } = await supabase
     .from("messages")
     .select("id, sender_id, content, created_at")
@@ -89,6 +127,9 @@ async function getThreadData(
       content: m.content,
       createdAt: m.created_at,
     })),
+    blockedByMe,
+    warnUnknownBuyer,
+    orderLabel: conversation.order_id ? `#${conversation.order_id.slice(0, 8)}` : null,
   };
 }
 
@@ -149,6 +190,7 @@ export default async function MensagensPage({
     <>
       <Header />
       <main className="flex-1 bg-cream/30 dark:bg-[#1a1208]">
+        <ConversationsRealtime />
         <div className="max-w-6xl mx-auto h-[calc(100vh-64px)] flex border-x border-border dark:border-[#3d2c1a]">
           {/* Lista de conversas */}
           <div
@@ -177,12 +219,16 @@ export default async function MensagensPage({
           <div className={cn("flex-1 min-w-0", conversa ? "flex" : "hidden md:flex")}>
             {thread ? (
               <MessageThread
+                key={conversa}
                 conversationId={conversa!}
                 messages={thread.messages}
                 currentUserId={user.id}
                 otherName={thread.otherName}
                 otherAvatar={thread.otherAvatar}
                 product={thread.product}
+                blockedByMe={thread.blockedByMe}
+                warnUnknownBuyer={thread.warnUnknownBuyer}
+                orderLabel={thread.orderLabel}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center text-center px-6">

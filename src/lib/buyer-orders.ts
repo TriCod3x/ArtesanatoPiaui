@@ -7,7 +7,8 @@ import type { OrderStatus } from "@/types";
 export const BUYER_ORDERS_SELECT = `
       id, status, total_amount, created_at,
       items:order_items(
-        id, quantity, unit_price, subtotal, item_status,
+        id, quantity, unit_price, subtotal, item_status, store_id,
+        store:stores(name),
         product:products(name, slug, images:product_images(url, is_cover))
       ),
       shipments(store_id, service_name, status, tracking_code, store:stores(name))
@@ -19,6 +20,8 @@ export interface BuyerOrderItemRow {
   unit_price: number;
   subtotal: number;
   item_status: string;
+  store_id: string;
+  store: { name: string } | null;
   product: { name: string; slug: string; images: { url: string; is_cover: boolean }[] } | null;
 }
 

@@ -1,5 +1,5 @@
 -- Comunidade: ate 6 imagens por post, republicar e marcar com @ (usuarios e
--- lojas). ARQUIVO PENDENTE DE APLICACAO: revisar antes.
+-- lojas). ARQUIVO APLICADA em 2026-10-12: revisar antes.
 --
 -- O codigo novo (leitura do feed, createPost, toggleRepost) depende destas
 -- tabelas: aplicar ESTA migration ANTES de subir o codigo.

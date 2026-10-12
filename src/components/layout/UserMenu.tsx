@@ -6,12 +6,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ChevronDown,
+  Flag,
   LayoutDashboard,
   LogOut,
   MessageCircle,
   Package,
   Heart,
   ShieldCheck,
+  Star,
+  Store,
   User,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
@@ -20,23 +23,73 @@ import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
 
 interface UserMenuProps {
+  userId: string | null;
   fullName: string | null;
   avatarUrl: string | null;
   role: Role | null;
 }
 
-export function UserMenu({ fullName, avatarUrl, role }: UserMenuProps) {
+const UNREAD_FALLBACK_POLL_MS = 30_000;
+
+export function UserMenu({ userId, fullName, avatarUrl, role }: UserMenuProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  // null = ainda descobrindo; evita piscar "Vender aqui" pra quem tem loja.
+  const [hasStore, setHasStore] = useState<boolean | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const firstName = fullName?.trim().split(" ")[0] || "Minha conta";
   const initial = fullName?.trim()?.[0]?.toUpperCase() ?? "?";
 
+  // Contador de não lidas: busca ao montar e acompanha por Realtime (a RLS
+  // filtra as mensagens do usuário); com a conexão fora, busca a cada 30 s.
   useEffect(() => {
-    getUnreadMessagesCount().then(setUnreadCount);
+    const supabase = createClient();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let connected = false;
+
+    const refresh = () => {
+      getUnreadMessagesCount().then(setUnreadCount);
+    };
+    refresh();
+
+    const channel = supabase
+      .channel("chat:unread")
+      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(refresh, 500);
+      })
+      .subscribe((status) => {
+        connected = status === "SUBSCRIBED";
+      });
+
+    const poll = setInterval(() => {
+      if (!connected) refresh();
+    }, UNREAD_FALLBACK_POLL_MS);
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      clearInterval(poll);
+      supabase.removeChannel(channel);
+    };
   }, []);
+
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    createClient()
+      .from("stores")
+      .select("id")
+      .eq("owner_id", userId)
+      .limit(1)
+      .then(({ data }) => {
+        if (!cancelled) setHasStore((data?.length ?? 0) > 0);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (!open) return;
@@ -76,16 +129,20 @@ export function UserMenu({ fullName, avatarUrl, role }: UserMenuProps) {
     { href: "/mensagens", label: "Mensagens", icon: MessageCircle, show: true, badge: unreadCount },
     { href: "/favoritos", label: "Favoritos", icon: Heart, show: true },
     { href: "/pedidos", label: "Meus pedidos", icon: Package, show: true },
-    {
-      href: "/dashboard",
-      label: "Dashboard",
-      icon: LayoutDashboard,
-      show: role === "seller" || role === "admin",
-    },
+    { href: "/minhas-avaliacoes", label: "Minhas avaliações", icon: Star, show: true },
+    // Quem tem loja vê "Minha loja" (o painel); quem ainda não vende vê o convite.
+    { href: "/dashboard", label: "Minha loja", icon: LayoutDashboard, show: hasStore === true },
+    { href: "/vender", label: "Vender aqui", icon: Store, show: hasStore === false },
     {
       href: "/admin/lojas",
       label: "Administração",
       icon: ShieldCheck,
+      show: role === "admin",
+    },
+    {
+      href: "/admin/denuncias",
+      label: "Denúncias do chat",
+      icon: Flag,
       show: role === "admin",
     },
   ];

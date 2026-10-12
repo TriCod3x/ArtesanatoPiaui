@@ -41,6 +41,116 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_blocks: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string
+          id: string
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string
+          id?: string
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_blocks_blocked_id_fkey"
+            columns: ["blocked_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_blocks_blocker_id_fkey"
+            columns: ["blocker_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_reports: {
+        Row: {
+          admin_note: string | null
+          conversation_id: string | null
+          created_at: string
+          details: string | null
+          id: string
+          reason: string
+          reported_user_id: string
+          reporter_id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          snapshot: Json
+          status: string
+        }
+        Insert: {
+          admin_note?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason: string
+          reported_user_id: string
+          reporter_id: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          snapshot: Json
+          status?: string
+        }
+        Update: {
+          admin_note?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason?: string
+          reported_user_id?: string
+          reporter_id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          snapshot?: Json
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_reports_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_reports_reported_user_id_fkey"
+            columns: ["reported_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_reports_reporter_id_fkey"
+            columns: ["reporter_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_reports_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       commissions: {
         Row: {
           commission_amount: number
@@ -257,6 +367,7 @@ export type Database = {
           created_at: string
           id: string
           last_message_at: string
+          order_id: string | null
           product_id: string | null
           store_id: string
         }
@@ -265,6 +376,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_message_at?: string
+          order_id?: string | null
           product_id?: string | null
           store_id: string
         }
@@ -273,6 +385,7 @@ export type Database = {
           created_at?: string
           id?: string
           last_message_at?: string
+          order_id?: string | null
           product_id?: string | null
           store_id?: string
         }
@@ -282,6 +395,13 @@ export type Database = {
             columns: ["buyer_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversations_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
           {
@@ -848,6 +968,7 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          chat_disabled: boolean
           city: string | null
           created_at: string
           full_name: string
@@ -859,6 +980,7 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          chat_disabled?: boolean
           city?: string | null
           created_at?: string
           full_name: string
@@ -870,6 +992,7 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          chat_disabled?: boolean
           city?: string | null
           created_at?: string
           full_name?: string

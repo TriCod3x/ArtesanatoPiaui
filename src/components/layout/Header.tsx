@@ -80,6 +80,7 @@ export function Header() {
               </Button>
 
               <UserMenu
+                userId={user.id}
                 fullName={profile?.full_name ?? null}
                 avatarUrl={profile?.avatar_url ?? null}
                 role={role}

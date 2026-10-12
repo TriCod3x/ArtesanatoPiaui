@@ -12,6 +12,7 @@ import type { StoreShippingQuote } from "@/lib/shipping-quotes";
 import type { StoreHoursInputDay } from "@/lib/store-hours";
 import type { ProductWithRelations, OrderStatus } from "@/types";
 import type { UnavailableReason } from "@/lib/reorder";
+import type { ReportReason, ReportResolutionStatus, ReportSnapshotEntry } from "@/lib/chat";
 
 export interface ProductSearchResult {
   id: string;
@@ -114,3 +115,30 @@ export type ReorderItemsResult =
       items: { product: ProductWithRelations; quantity: number; requestedQuantity: number }[];
       unavailable: { name: string; reason: UnavailableReason }[];
     };
+
+// ---- Chat comprador <-> loja (src/actions/messages.ts, src/actions/admin.ts) ----
+
+/** `unauthenticated` = sem sessão: a action não chegou a tocar o banco. */
+export type ChatActionError = { error: string; unauthenticated?: boolean };
+
+export type StartConversationResult = ChatActionError | { conversationId: string };
+
+export type ChatActionResult = ChatActionError | { success: true };
+
+export type ReportConversationResult = ChatActionError | { success: true; blocked: boolean };
+
+export interface ChatReportItem {
+  id: string;
+  createdAt: string;
+  reason: ReportReason;
+  details: string | null;
+  snapshot: ReportSnapshotEntry[];
+  reportedUserId: string;
+  reportedName: string;
+  reportedChatDisabled: boolean;
+  reporterName: string;
+}
+
+export type ListReportsResult = { error: string } | { reports: ChatReportItem[] };
+
+export type ResolveReportStatus = ReportResolutionStatus;

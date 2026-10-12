@@ -10,9 +10,19 @@ import { RelativeTime } from "@/components/shared/RelativeTime";
 import { PLACEHOLDER_PRODUCT_IMG } from "@/lib/constants";
 import { getBuyerOrderStatus, getBuyerOrderStatusLabel, BUYER_ORDER_STATUS_CLASS } from "@/lib/order-status";
 import { ReviewForm } from "@/components/orders/ReviewForm";
+import { SendMessageButton } from "@/components/messages/SendMessageButton";
 import { BUYER_ORDERS_SELECT, type BuyerOrderRow } from "@/lib/buyer-orders";
 
 export const dynamic = "force-dynamic";
+
+/** Lojas distintas de um pedido, na ordem em que aparecem nos itens. */
+function storesOfOrder(order: BuyerOrderRow): { id: string; name: string }[] {
+  const seen = new Map<string, string>();
+  for (const item of order.items) {
+    if (!seen.has(item.store_id)) seen.set(item.store_id, item.store?.name ?? "a loja");
+  }
+  return [...seen].map(([id, name]) => ({ id, name }));
+}
 
 export default async function PedidosPage() {
   const supabase = await createClient();
@@ -151,6 +161,23 @@ export default async function PedidosPage() {
                       );
                     })}
                   </ul>
+
+                  {/* Uma conversa por loja do pedido (um pedido pode ter várias lojas). */}
+                  <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-4 pt-3 border-t border-border dark:border-[#3d2c1a]">
+                    {storesOfOrder(order).map((store, _index, all) => (
+                      <SendMessageButton
+                        key={store.id}
+                        storeId={store.id}
+                        orderId={order.id}
+                        variant="link"
+                        label={
+                          all.length > 1
+                            ? `Falar com ${store.name} sobre este pedido`
+                            : "Falar com a loja sobre este pedido"
+                        }
+                      />
+                    ))}
+                  </div>
 
                   {order.shipments.length > 0 && (
                     <div className="flex flex-col gap-2 mt-4 pt-3 border-t border-border dark:border-[#3d2c1a]">

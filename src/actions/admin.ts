@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { IDENTITY_DOCUMENTS_BUCKET, SIGNED_URL_TTL } from "@/lib/constants";
+import { isReportReason, isReportResolutionStatus, type ReportReason, type ReportSnapshotEntry } from "@/lib/chat";
+import { isUuid } from "@/lib/chat-server";
+import type { ChatReportItem, ListReportsResult } from "@/types/actions";
 import type { User } from "@supabase/supabase-js";
 
 async function requireAdmin(): Promise<
@@ -231,4 +234,117 @@ export async function rejectStore(storeId: string, reason?: string) {
   revalidatePath(`/lojas/${store.slug}`);
   revalidatePath("/");
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Moderação do chat (denúncias). Todas checam o papel admin NO BANCO
+// (requireAdmin) e usam o service role: o admin não tem SELECT em messages,
+// só vê o snapshot gravado na denúncia.
+// ---------------------------------------------------------------------------
+
+/** Denúncias abertas, mais recentes primeiro. `reportedUserId` filtra por denunciado. */
+export async function listReports(reportedUserId?: string): Promise<ListReportsResult> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+
+  if (reportedUserId !== undefined && !isUuid(reportedUserId)) {
+    return { error: "Usuário inválido." };
+  }
+
+  const admin = createAdminClient();
+  let query = admin
+    .from("chat_reports")
+    .select("id, reporter_id, reported_user_id, reason, details, snapshot, created_at")
+    .eq("status", "open")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (reportedUserId) query = query.eq("reported_user_id", reportedUserId);
+
+  const { data: rows, error } = await query;
+  if (error) return { error: "Não foi possível carregar as denúncias." };
+
+  const userIds = [...new Set((rows ?? []).flatMap((r) => [r.reporter_id, r.reported_user_id]))];
+  const { data: profiles } =
+    userIds.length > 0
+      ? await admin.from("profiles").select("id, full_name, chat_disabled").in("id", userIds)
+      : { data: [] as { id: string; full_name: string; chat_disabled: boolean }[] };
+  const profileById = new Map((profiles ?? []).map((p) => [p.id, p]));
+
+  const reports: ChatReportItem[] = (rows ?? [])
+    .filter((r) => isReportReason(r.reason))
+    .map((r) => ({
+      id: r.id,
+      createdAt: r.created_at,
+      reason: r.reason as ReportReason,
+      details: r.details,
+      snapshot: Array.isArray(r.snapshot) ? (r.snapshot as unknown as ReportSnapshotEntry[]) : [],
+      reportedUserId: r.reported_user_id,
+      reportedName: profileById.get(r.reported_user_id)?.full_name ?? "Usuário",
+      reportedChatDisabled: profileById.get(r.reported_user_id)?.chat_disabled ?? false,
+      reporterName: profileById.get(r.reporter_id)?.full_name ?? "Usuário",
+    }));
+
+  return { reports };
+}
+
+/** Fecha uma denúncia aberta com um desfecho e uma nota opcional. */
+export async function resolveReport(
+  reportId: string,
+  status: string,
+  note?: string,
+): Promise<{ error: string } | { success: true }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  if (!isUuid(reportId)) return { error: "Denúncia não encontrada." };
+  if (!isReportResolutionStatus(status)) return { error: "Desfecho inválido." };
+
+  const trimmedNote = typeof note === "string" ? note.trim() : "";
+  if ([...trimmedNote].length > 1000) return { error: "A nota pode ter no máximo 1000 caracteres." };
+
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("chat_reports")
+    .update({
+      status,
+      admin_note: trimmedNote || null,
+      reviewed_by: auth.user.id,
+      reviewed_at: new Date().toISOString(),
+    })
+    .eq("id", reportId)
+    .eq("status", "open")
+    .select("id");
+
+  if (error) return { error: "Não foi possível atualizar a denúncia." };
+  if (!data || data.length === 0) return { error: "Esta denúncia já foi analisada." };
+
+  revalidatePath("/admin/denuncias");
+  return { success: true as const };
+}
+
+/** Liga/desliga o chat de um usuário (não vale pra admin). */
+export async function setChatDisabled(
+  userId: string,
+  disabled: boolean,
+): Promise<{ error: string } | { success: true }> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return auth;
+
+  if (!isUuid(userId) || typeof disabled !== "boolean") return { error: "Usuário inválido." };
+  if (userId === auth.user.id) return { error: "Você não pode desativar o próprio chat." };
+
+  const admin = createAdminClient();
+  const { data: target } = await admin
+    .from("profiles")
+    .select("id, role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (!target) return { error: "Usuário não encontrado." };
+  if (target.role === "admin") return { error: "Não é possível desativar o chat de um admin." };
+
+  const { error } = await admin.from("profiles").update({ chat_disabled: disabled }).eq("id", userId);
+  if (error) return { error: "Não foi possível atualizar o usuário." };
+
+  revalidatePath("/admin/denuncias");
+  return { success: true as const };
 }

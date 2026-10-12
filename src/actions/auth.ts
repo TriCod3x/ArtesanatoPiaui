@@ -46,12 +46,13 @@ export async function signUp(
   }
 
   if (authData.user) {
-    await supabase.from("profiles").upsert({
-      id: authData.user.id,
-      full_name: data.full_name,
-      role: data.role,
-      phone: data.phone ?? null,
-    });
+    // O perfil já é criado pelo trigger handle_new_user (com full_name e role).
+    // O usuário só pode atualizar full_name, avatar_url, phone, city e state:
+    // um upsert com id/role cairia em "permission denied" (ON CONFLICT DO UPDATE).
+    await supabase
+      .from("profiles")
+      .update({ full_name: data.full_name, phone: data.phone ?? null })
+      .eq("id", authData.user.id);
   }
 
   if (!shouldRedirect) {
