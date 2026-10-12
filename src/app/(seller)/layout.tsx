@@ -5,7 +5,7 @@ export default function SellerLayout({ children }: { children: React.ReactNode }
   return (
     <>
       <Header />
-      <div className="flex-1 bg-cream/50">
+      <div className="flex-1 bg-background">
         {children}
       </div>
       <Footer />

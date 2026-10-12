@@ -41,7 +41,7 @@ export default async function MeusProdutosPage() {
     <main className="max-w-7xl mx-auto px-4 py-10">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-display text-3xl font-bold text-dark">Meus produtos</h1>
+          <h1 className="font-display text-3xl font-bold text-dark dark:text-[#f5edd6]">Meus produtos</h1>
           <p className="text-muted-foreground mt-1">{products.length} produto{products.length !== 1 ? "s" : ""} cadastrado{products.length !== 1 ? "s" : ""}</p>
         </div>
         <Link href="/meus-produtos/novo">
@@ -61,23 +61,23 @@ export default async function MeusProdutosPage() {
           </Link>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-border overflow-hidden">
+        <div className="bg-white dark:bg-[#2a1e0f] rounded-2xl border border-border dark:border-[#3d2c1a] overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-cream/50 border-b border-border">
+            <thead className="bg-cream/50 dark:bg-[#1f160b] border-b border-border dark:border-[#3d2c1a]">
               <tr>
-                <th className="text-left px-4 py-3 font-semibold text-dark">Produto</th>
-                <th className="text-left px-4 py-3 font-semibold text-dark hidden md:table-cell">Categoria</th>
-                <th className="text-right px-4 py-3 font-semibold text-dark">Preço</th>
-                <th className="text-right px-4 py-3 font-semibold text-dark hidden sm:table-cell">Estoque</th>
-                <th className="text-center px-4 py-3 font-semibold text-dark">Status</th>
-                <th className="text-right px-4 py-3 font-semibold text-dark">Ações</th>
+                <th className="text-left px-4 py-3 font-semibold text-dark dark:text-[#f5edd6]">Produto</th>
+                <th className="text-left px-4 py-3 font-semibold text-dark dark:text-[#f5edd6] hidden md:table-cell">Categoria</th>
+                <th className="text-right px-4 py-3 font-semibold text-dark dark:text-[#f5edd6]">Preço</th>
+                <th className="text-right px-4 py-3 font-semibold text-dark dark:text-[#f5edd6] hidden sm:table-cell">Estoque</th>
+                <th className="text-center px-4 py-3 font-semibold text-dark dark:text-[#f5edd6]">Status</th>
+                <th className="text-right px-4 py-3 font-semibold text-dark dark:text-[#f5edd6]">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border">
+            <tbody className="divide-y divide-border dark:divide-[#3d2c1a]">
               {products.map((product) => (
                 <tr key={product.id} className="hover:bg-cream/20 transition-colors">
                   <td className="px-4 py-3">
-                    <p className="font-medium text-dark line-clamp-1">{product.name}</p>
+                    <p className="font-medium text-dark dark:text-[#f5edd6] line-clamp-1">{product.name}</p>
                     <p className="text-xs text-muted-foreground">/produtos/{product.slug}</p>
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">
@@ -87,7 +87,7 @@ export default async function MeusProdutosPage() {
                     {formatPrice(product.price)}
                   </td>
                   <td className="px-4 py-3 text-right hidden sm:table-cell">
-                    <span className={product.stock === 0 ? "text-destructive font-semibold" : "text-dark"}>
+                    <span className={product.stock === 0 ? "text-destructive font-semibold" : "text-dark dark:text-[#f5edd6]"}>
                       {product.stock}
                     </span>
                   </td>
